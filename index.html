@@ -119,6 +119,17 @@ input::placeholder{ color:#9a7b5e; }
   align-items:center; justify-content:center; touch-action:none; }
 #fireBtn:active{ transform:scale(.93); background:radial-gradient(circle at 35% 30%,rgba(255,200,150,.7),rgba(220,110,70,.7)); }
 
+/* 固定 DOM 摇杆（手机端） */
+#joy{ position:fixed; left:24px; bottom:28px; z-index:31; width:120px; height:120px; border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.10),rgba(255,255,255,.04));
+  border:2px solid rgba(255,230,200,.35); display:none; touch-action:none; }
+#joyKnob{ position:absolute; left:50%; top:50%; width:54px; height:54px; border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,rgba(255,220,180,.8),rgba(217,154,91,.8));
+  transform:translate(-50%,-50%); box-shadow:0 2px 10px rgba(0,0,0,.4); }
+/* 撤离方向箭头 */
+#exArrow{ position:fixed; top:50%; left:50%; z-index:28; display:none; pointer-events:none;
+  font-size:28px; color:#ffd25e; text-shadow:0 0 8px rgba(255,210,94,.8); transform:translate(-50%,-50%); }
+
 /* 表情条 */
 #emoteBar{ position:fixed; right:14px; bottom:180px; z-index:30; display:none; gap:6px; }
 #emoteBar button{ background:rgba(36,22,14,.8); border:1px solid var(--line); color:#fff; border-radius:8px;
@@ -303,6 +314,8 @@ input::placeholder{ color:#9a7b5e; }
   <div class="track"><div class="fill" id="exFill"></div></div>
 </div>
 <div id="fireBtn">开火</div>
+<div id="joy"><div id="joyKnob"></div></div>
+<div id="exArrow">▲</div>
 <div id="emoteBar">
   <button data-ph="冲鸭！">冲鸭！</button>
   <button data-ph="溜了溜了">溜了溜了</button>
@@ -334,7 +347,7 @@ const sysLog=$('sysLog');
 const TILE=50, MAP_W=140, MAP_H=140;
 const WORLD_W=MAP_W*TILE, WORLD_H=MAP_H*TILE;
 const PLAYER_R=16, SPEED=235, MAX_HP=100;
-const ROUND_MS=15*60*1000, EXTRACT_NEED=10, EXTRACT_R=150;
+const ROUND_MS=15*60*1000, EXTRACT_NEED=10, EXTRACT_R=220;
 const COLORS=['#ff6b6b','#4dabf7','#3ddc84','#ffc233','#c77dff','#22d3ee','#f783ac','#b8f34a'];
 const CODE_CHARS='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const ICE_CONFIG={
@@ -519,7 +532,7 @@ function drawParts(){
 /* ============ 子弹（本地预测+广播视觉） ============ */
 let bullets=[];
 function spawnBulletVisual(x,y,vx,vy,color){
-  bullets.push({x,y,vx,vy,life:.35,color});
+  bullets.push({x,y,vx,vy,life:.45,color});
 }
 
 /* ============ 音效 ============ */
@@ -825,11 +838,13 @@ function resetToMenu(){
   $('timer').style.display='none';$('coinsHud').style.display='none';$('weaponHud').style.display='none';
   $('board').style.display='none';$('emoteBar').style.display='none';$('fireBtn').style.display='none';
   $('result').style.display='none';$('extractBar').style.display='none';
+  $('joy').style.display='none';$('exArrow').style.display='none';
 }
 function showGame(){
   $('menu').style.display='none';$('hud').style.display='flex';$('hpWrap').style.display='block';
   $('timer').style.display='block';$('coinsHud').style.display='block';$('weaponHud').style.display='block';
-  $('board').style.display='block';$('emoteBar').style.display='flex';$('fireBtn').style.display='flex';
+  $('board').style.display='block';$('emoteBar').style.display='flex';$('fireBtn').style.display=IS_TOUCH?'flex':'none';
+  if(IS_TOUCH)$('joy').style.display='block';
   $('roomCodeText').textContent=roomCode;inGame=true;
 }
 
@@ -939,42 +954,63 @@ canvas.addEventListener('mousemove',e=>{mouseX=e.clientX;mouseY=e.clientY;});
 canvas.addEventListener('mousedown',e=>{if(e.button===0)mouseDown=true;});
 addEventListener('mouseup',()=>{mouseDown=false;});
 
-/* 双摇杆：moveJoy 移动，aimJoy 瞄准；动态基座。
-   第一根手指：左半屏=移动，右半屏=移动（兜底）；
-   第二根手指：右半屏=瞄准。 */
+/* 双摇杆状态 */
 const moveJoy={active:false,id:null,ox:0,oy:0,dx:0,dy:0};
 const aimJoy ={active:false,id:null,ox:0,oy:0,dx:1,dy:0};
+
+/* 检测是否触屏设备 */
+const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints>0;
+
+/* === 固定 DOM 摇杆（手机端）=== */
+const joyEl=$('joy'),joyKnob=$('joyKnob');
+function joySet(clientX,clientY){
+  const r=joyEl.getBoundingClientRect();
+  const cx=r.left+r.width/2, cy=r.top+r.height/2;
+  let dx=clientX-cx, dy=clientY-cy;
+  const R=r.width/2, len=Math.hypot(dx,dy);
+  if(len>R){dx=dx/len*R;dy=dy/len*R;}
+  moveJoy.dx=dx/R; moveJoy.dy=dy/R;
+  joyKnob.style.transform=`translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+}
+function joyReset(){
+  moveJoy.active=false; moveJoy.dx=0; moveJoy.dy=0;
+  joyKnob.style.transform='translate(-50%,-50%)';
+}
+joyEl.addEventListener('touchstart',e=>{
+  e.preventDefault(); e.stopPropagation();
+  moveJoy.active=true; moveJoy.id=e.changedTouches[0].identifier;
+  joySet(e.changedTouches[0].clientX,e.changedTouches[0].clientY);
+},{passive:false});
+joyEl.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  for(const t of e.changedTouches)if(t.identifier===moveJoy.id)joySet(t.clientX,t.clientY);
+},{passive:false});
+joyEl.addEventListener('touchend',e=>{for(const t of e.changedTouches)if(t.identifier===moveJoy.id)joyReset();});
+joyEl.addEventListener('touchcancel',joyReset);
+
+/* === 触屏：右半屏拖动 = 瞄准 === */
 canvas.addEventListener('touchstart',e=>{
   for(const t of e.changedTouches){
-    if(!moveJoy.active){
-      moveJoy.active=true;moveJoy.id=t.identifier;moveJoy.ox=t.clientX;moveJoy.oy=t.clientY;moveJoy.dx=0;moveJoy.dy=0;
-    }else if(!aimJoy.active && t.clientX>innerWidth/2){
-      aimJoy.active=true;aimJoy.id=t.identifier;aimJoy.ox=t.clientX;aimJoy.oy=t.clientY;aimJoy.dx=1;aimJoy.dy=0;
+    if(!aimJoy.active && t.clientX>innerWidth*0.55) {
+      aimJoy.active=true; aimJoy.id=t.identifier; aimJoy.ox=t.clientX; aimJoy.oy=t.clientY; aimJoy.dx=1; aimJoy.dy=0;
     }
   }
   if(e.touches.length)e.preventDefault();
 },{passive:false});
 canvas.addEventListener('touchmove',e=>{
   for(const t of e.changedTouches){
-    let j=null;
-    if(moveJoy.active&&t.identifier===moveJoy.id)j=moveJoy;
-    else if(aimJoy.active&&t.identifier===aimJoy.id)j=aimJoy;
-    if(!j)continue;
-    let dx=t.clientX-j.ox,dy=t.clientY-j.oy;
-    const len=Math.hypot(dx,dy),R=58;
-    if(len>R){dx=dx/len*R;dy=dy/len*R;}
-    j.dx=dx/R;j.dy=dy/R;
+    if(aimJoy.active&&t.identifier===aimJoy.id){
+      let dx=t.clientX-aimJoy.ox, dy=t.clientY-aimJoy.oy;
+      const len=Math.hypot(dx,dy),R=60;
+      if(len>R){dx=dx/len*R;dy=dy/len*R;}
+      aimJoy.dx=dx/R; aimJoy.dy=dy/R;
+    }
   }
   e.preventDefault();
 },{passive:false});
-function endTouch(e){
-  for(const t of e.changedTouches){
-    if(moveJoy.active&&t.identifier===moveJoy.id){moveJoy.active=false;moveJoy.dx=0;moveJoy.dy=0;}
-    if(aimJoy.active&&t.identifier===aimJoy.id){aimJoy.active=false;aimJoy.dx=1;aimJoy.dy=0;}
-  }
-}
-canvas.addEventListener('touchend',endTouch);
-canvas.addEventListener('touchcancel',endTouch);
+canvas.addEventListener('touchend',e=>{
+  for(const t of e.changedTouches)if(aimJoy.active&&t.identifier===aimJoy.id){aimJoy.active=false;aimJoy.dx=1;aimJoy.dy=0;}
+});
 
 let fireHeld=false;
 $('fireBtn').addEventListener('touchstart',e=>{e.preventDefault();fireHeld=true;},{passive:false});
@@ -1376,8 +1412,11 @@ function drawScene(ts){
   /* 子弹 */
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];
-    ctx.strokeStyle=b.color;ctx.globalAlpha=Math.max(0,b.life/.35);ctx.lineWidth=2.5;
-    ctx.beginPath();ctx.moveTo(b.x-b.vx*.012,b.y-b.vy*.012);ctx.lineTo(b.x,b.y);ctx.stroke();
+    ctx.globalAlpha=Math.max(0,b.life/.45);
+    ctx.strokeStyle=b.color;ctx.lineWidth=3;ctx.lineCap='round';
+    ctx.shadowColor=b.color;ctx.shadowBlur=8;
+    ctx.beginPath();ctx.moveTo(b.x-b.vx*.02,b.y-b.vy*.02);ctx.lineTo(b.x,b.y);ctx.stroke();
+    ctx.shadowBlur=0;
   }
   ctx.globalAlpha=1;
   for(const p of Object.values(players)){
@@ -1388,7 +1427,6 @@ function drawScene(ts){
   drawParts();
   ctx.restore();
   drawMinimap();
-  if(moveJoy.active||aimJoy.active)drawJoystick();
 }
 
 function drawMinimap(){
@@ -1562,6 +1600,15 @@ function loop(ts){
     }else{
       $('extractBar').style.display='none';
     }
+    /* 撤离方向箭头 */
+    if(me.alive){
+      const ang=Math.atan2(EX_Y-me.y,EX_X-me.x);
+      const ex=$('exArrow');
+      ex.style.display='block';
+      ex.style.left=(W/2+Math.cos(ang)*Math.min(W,H)*0.38)+'px';
+      ex.style.top=(H/2+Math.sin(ang)*Math.min(W,H)*0.38)+'px';
+      ex.style.transform=`translate(-50%,-50%) rotate(${ang*180/Math.PI+90}deg)`;
+    }else{$('exArrow').style.display='none';}
   }
   if(ts-lastBoard>400&&inGame){
     lastBoard=ts;
