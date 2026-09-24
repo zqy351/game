@@ -24,7 +24,7 @@ html,body{ width:100%; height:100%; overflow:hidden; background:var(--bg); color
   font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,-apple-system,sans-serif;
   -webkit-user-select:none; user-select:none; }
 button{ font-family:inherit; }
-#game{ position:fixed; inset:0; display:block; width:100vw; height:100vh; background:#3a5c3a; touch-action:none; }
+#game{ position:fixed; left:0; top:0; display:block; width:100vw; height:100vh; height:100dvh; background:#3a5c3a; touch-action:none; }
 
 /* ===== 主菜单（暖棕巧克力色） ===== */
 #menu{ position:fixed; inset:0; z-index:40; display:flex; align-items:center; justify-content:center; padding:20px;
@@ -1155,16 +1155,19 @@ function stepRoundHost(dt){
 
 /* ============ 结算 ============ */
 function extractDone(){
-  if(!me)return;
-  me.extracted=true; me.alive=false;
-  const earn=me.score;
-  stats.coins+=earn; stats.extracts++; stats.best=Math.max(stats.best,earn); saveStats();
-  upselfBoard();
-  sfx.extract();
-  showResult('撤离成功','你带走了本局所有收获','+'+earn);
-  $('rsSub').textContent='战绩已更新，3 秒后返回主菜单…';
-  $('btnAgain').style.display='none';
-  setTimeout(()=>{ $('result').style.display='none'; resetToMenu(); refreshProfile(); },3000);
+  if(!me||me.extracted)return;
+  try{
+    me.extracted=true; me.alive=false;
+    const earn=me.score||0;
+    stats.coins+=earn; stats.extracts++; stats.best=Math.max(stats.best,earn); saveStats();
+    upselfBoard();
+    showResult('撤离成功','你带走了本局所有收获','+'+earn);
+    $('rsSub').textContent='战绩已更新，3 秒后返回主菜单…';
+    $('btnAgain').style.display='none';
+    $('result').style.display='flex';
+    inGame=false;
+    setTimeout(()=>{ try{ resetToMenu(); refreshProfile(); }catch(e){ location.reload(); } },3000);
+  }catch(e){ console.error('extractDone',e); setTimeout(()=>location.reload(),1500); }
 }
 function showResult(title,sub,earn){
   $('rsTitle').textContent=title;
@@ -1195,12 +1198,16 @@ function onRoundEnd(results){
 /* ============ 画布 & 预渲染地形 ============ */
 let W=innerWidth,H=innerHeight,camX=0,camY=0;
 function resize(){
-  W=innerWidth;H=innerHeight;
+  W=document.documentElement.clientWidth||innerWidth;
+  H=document.documentElement.clientHeight||innerHeight;
   const dpr=Math.min(2,window.devicePixelRatio||1);
   canvas.width=W*dpr;canvas.height=H*dpr;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';
   ctx.setTransform(dpr,0,0,dpr,0,0);
 }
-addEventListener('resize',resize);resize();
+addEventListener('resize',resize);
+if(window.visualViewport)window.visualViewport.addEventListener('resize',resize);
+resize();
 
 /* 预渲染每种地形若干变体 */
 function makeTileCanvas(drawFn){
@@ -1770,13 +1777,13 @@ document.querySelectorAll('.lb-tabs button').forEach(b=>{
   });
 });
 $('btnAddFriend').addEventListener('click',()=>{
-  const id=$('friendId').value.trim().toLowerCase();
-  if(!id){return;}
-  if(id===myPid){uiLog('不能添加自己');return;}
-  if(friends.find(f=>f.id===id)){uiLog('已经是好友了');return;}
+  const id=$('friendId').value.trim().toLowerCase().replace(/[^a-z0-9_]/g,'');
+  if(id.length<4){alert('ID 需要 4~10 位字母数字');return;}
+  if(id===myPid){alert('不能添加自己');return;}
+  if(friends.find(f=>f.id===id)){alert('已经是好友了');return;}
   const known=board[id];
   friends.push({id,name:known?known.name:id,color:known?known.color:'#888'});
-  saveFriends(friends);$('friendId').value='';renderBoard();uiLog('已添加好友 '+id);
+  saveFriends(friends);$('friendId').value='';renderBoard();
 });
 $('btnBoard').addEventListener('click',()=>{upselfBoard();renderBoard();$('boardPanel').style.display='flex';});
 $('btnCloseBoard').addEventListener('click',()=>{$('boardPanel').style.display='none';});
