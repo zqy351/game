@@ -1439,22 +1439,12 @@ function drawScene(ts){
   }
   ctx.globalAlpha=1;
   for(const p of Object.values(players)){
-    if(p.id===myPeerId)continue; /* 自己单独画在屏幕中心 */
     if(p.x<camX-120||p.x>camX+W+120||p.y<camY-120||p.y>camY+H+120)continue;
-    drawPlayer(p,false,ts);
+    drawPlayer(p,p.id===myPeerId,ts);
   }
+  if(!isHost&&me)drawPlayer(me,true,ts);
   drawParts();
   ctx.restore();
-  /* 自己永远画在屏幕正中心（屏幕坐标） */
-  if(me&&me.alive){
-    ctx.save();
-    ctx.translate(W/2, H/2);
-    const sx=me.x, sy=me.y;
-    me.x=0; me.y=0;
-    drawPlayer(me,true,ts);
-    me.x=sx; me.y=sy;
-    ctx.restore();
-  }
   drawMinimap();
 }
 
