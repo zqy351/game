@@ -1135,8 +1135,8 @@ function stepRoundHost(dt){
     if(d<EXTRACT_R){
       extractProg[p.id]=(extractProg[p.id]||0)+dt;
       if(extractProg[p.id]>=EXTRACT_NEED){
+        p.extracted=true;
         if(p.id===myPeerId)extractDone();
-        else p.extracted=true;
         broadcast({type:'extractDone',id:p.id,coins:p.score});
         broadcast({type:'sys',text:p.name+' 成功撤离，带走 '+p.score+' 金币！'});
       }
@@ -1154,6 +1154,18 @@ function stepRoundHost(dt){
 }
 
 /* ============ 结算 ============ */
+function extractDone(){
+  if(!me)return;
+  me.extracted=true; me.alive=false;
+  const earn=me.score;
+  stats.coins+=earn; stats.extracts++; stats.best=Math.max(stats.best,earn); saveStats();
+  upselfBoard();
+  sfx.extract();
+  showResult('撤离成功','你带走了本局所有收获','+'+earn);
+  $('rsSub').textContent='战绩已更新，3 秒后返回主菜单…';
+  $('btnAgain').style.display='none';
+  setTimeout(()=>{ $('result').style.display='none'; resetToMenu(); refreshProfile(); },3000);
+}
 function showResult(title,sub,earn){
   $('rsTitle').textContent=title;
   $('rsSub').textContent=sub;
@@ -1388,7 +1400,7 @@ function drawScene(ts){
   ctx.clearRect(0,0,W,H);
   if(!me)return;
   const tgtX=clamp(me.x-W/2,0,Math.max(0,WORLD_W-W)),tgtY=clamp(me.y-H/2,0,Math.max(0,WORLD_H-H));
-  camX+=(tgtX-camX)*.1;camY+=(tgtY-camY)*.1;
+  camX=tgtX;camY=tgtY;
   ctx.save();
   if(shake>0){ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.88;if(shake<.4)shake=0;}
   ctx.translate(-camX,-camY);
