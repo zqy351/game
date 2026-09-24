@@ -1661,6 +1661,9 @@ function loop(ts){
       ex.style.top=(H/2+Math.sin(ang)*Math.min(W,H)*0.38)+'px';
       ex.style.transform=`translate(-50%,-50%) rotate(${ang*180/Math.PI+90}deg)`;
     }else{$('exArrow').style.display='none';}
+    /* 调试 */
+    if(!window.__dbg){window.__dbg=document.createElement('div');window.__dbg.style.cssText='position:fixed;top:90px;left:10px;z-index:99;background:rgba(0,0,0,.7);color:#0f0;font:11px monospace;padding:3px;pointer-events:none;';document.body.appendChild(window.__dbg);}
+    window.__dbg.textContent='x:'+Math.round(me.x)+' y:'+Math.round(me.y)+' mj:'+(moveJoy.active?Math.round(moveJoy.dx*100)/100+','+Math.round(moveJoy.dy*100)/100:'-')+' v:'+Math.round(inputVec().len*100)/100;
   }
   if(ts-lastBoard>400&&inGame){
     lastBoard=ts;
