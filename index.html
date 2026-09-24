@@ -1439,13 +1439,46 @@ function drawScene(ts){
   }
   ctx.globalAlpha=1;
   for(const p of Object.values(players)){
+    if(p.id===myPeerId)continue;
     if(p.x<camX-120||p.x>camX+W+120||p.y<camY-120||p.y>camY+H+120)continue;
-    drawPlayer(p,p.id===myPeerId,ts);
+    drawPlayer(p,false,ts);
   }
-  if(!isHost&&me)drawPlayer(me,true,ts);
   drawParts();
   ctx.restore();
+  /* 自己画在屏幕正中心 */
+  if(me&&me.alive)drawMyself(ts);
   drawMinimap();
+}
+
+function drawMyself(ts){
+  const x=W/2, y=H/2;
+  const now=Date.now();
+  const bob=Math.abs(Math.sin(ts/220))*2;
+  const sy=y+PLAYER_R*.55;
+  /* 阴影 */
+  ctx.fillStyle='rgba(0,0,0,.22)';
+  ctx.beginPath();ctx.ellipse(x,sy,PLAYER_R*.8,PLAYER_R*.35,0,0,6.28);ctx.fill();
+  /* 身体 */
+  const grad=ctx.createRadialGradient(x-4,y-5+bob,2,x,y+bob,PLAYER_R);
+  grad.addColorStop(0,'rgba(255,255,255,.5)');grad.addColorStop(.4,me.color);grad.addColorStop(1,shade(me.color,-28));
+  ctx.beginPath();ctx.arc(x,y+bob,PLAYER_R,0,6.28);ctx.fillStyle=grad;ctx.fill();
+  ctx.lineWidth=2.5;ctx.strokeStyle='rgba(0,0,0,.35)';ctx.stroke();
+  /* 眼睛 */
+  const l=Math.hypot(me.fx||0,me.fy||0)||1,ex=(me.fx||0)/l*3,ey=(me.fy||0)/l*3;
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x-5+ex,y-5+bob+ey,4.4,0,6.28);ctx.arc(x+5+ex,y-5+bob+ey,4.4,0,6.28);ctx.fill();
+  ctx.fillStyle='#16202b';ctx.beginPath();ctx.arc(x-5+ex*1.5,y-5+bob+ey*1.5,2.2,0,6.28);ctx.arc(x+5+ex*1.5,y-5+bob+ey*1.5,2.2,0,6.28);ctx.fill();
+  /* 名字 */
+  ctx.font='bold 12px "PingFang SC","Microsoft YaHei",sans-serif';ctx.textAlign='center';
+  ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.7)';ctx.strokeText(me.name,x,y-40);
+  ctx.fillStyle='#fff';ctx.fillText(me.name,x,y-40);
+  ctx.font='11px "PingFang SC",sans-serif';
+  ctx.strokeText(me.score+' 金',x,y-18);
+  ctx.fillStyle='#ffd25e';ctx.fillText(me.score+' 金',x,y-18);
+  /* 血条 */
+  const bw=34,bh=4;
+  ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(x-bw/2,y-34,bw,bh);
+  ctx.fillStyle=me.hp>50?'#8fce7a':(me.hp>25?'#e8b93a':'#e06a5a');
+  ctx.fillRect(x-bw/2,y-34,bw*me.hp/MAX_HP,bh);
 }
 
 function drawMinimap(){
