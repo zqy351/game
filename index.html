@@ -71,30 +71,32 @@ input::placeholder{ color:#9a7b5e; }
 #profile .row{ display:flex; gap:10px; margin-top:4px; }
 
 /* ===== HUD ===== */
-#hud{ position:fixed; top:12px; left:12px; z-index:30; display:none; gap:8px; align-items:flex-start; flex-wrap:wrap; max-width:60vw; }
+#hud{ position:fixed; top:12px; left:12px; z-index:30; display:none; gap:8px; align-items:flex-start; flex-wrap:wrap; max-width:60vw; pointer-events:none; }
+#hud .hud-box{ pointer-events:none; }
+#hud .hud-btn{ pointer-events:auto; }
 .hud-box{ background:rgba(36,22,14,.82); border:1px solid var(--line); border-radius:10px; padding:7px 11px; font-size:13px; }
 .hud-box b{ color:var(--gold); letter-spacing:1px; margin-left:4px; }
 .hud-btn{ background:rgba(255,235,205,.1); border:1px solid var(--line); color:var(--text); border-radius:8px;
   padding:6px 9px; font-size:12px; cursor:pointer; }
 .hud-btn:hover{ background:rgba(255,235,205,.2); }
-#hpWrap{ position:fixed; top:12px; left:12px; z-index:29; display:none; width:170px; }
+#hpWrap{ position:fixed; top:12px; left:12px; z-index:29; display:none; width:170px; pointer-events:none; }
 #hpBar{ height:12px; border-radius:6px; background:rgba(0,0,0,.5); border:1px solid var(--line); overflow:hidden; }
 #hpFill{ height:100%; width:100%; background:linear-gradient(90deg,#8fce7a,#b8e08a); transition:width .15s; }
 #hpTxt{ font-size:11px; color:var(--text); margin-top:3px; text-shadow:0 1px 2px #000; }
 #timer{ position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:30; display:none;
   background:rgba(36,22,14,.85); border:1px solid var(--line); border-radius:12px; padding:8px 18px; font-size:20px;
-  font-weight:800; color:var(--gold); letter-spacing:2px; }
+  font-weight:800; color:var(--gold); letter-spacing:2px; pointer-events:none; }
 #timer.urgent{ color:var(--danger); border-color:var(--danger); animation:pulse 1s infinite; }
 @keyframes pulse{ 50%{ box-shadow:0 0 14px rgba(224,106,90,.6); } }
 #coinsHud{ position:fixed; top:58px; left:50%; transform:translateX(-50%); z-index:30; display:none;
-  background:rgba(36,22,14,.8); border:1px solid var(--line); border-radius:10px; padding:5px 14px; font-size:14px; }
+  background:rgba(36,22,14,.8); border:1px solid var(--line); border-radius:10px; padding:5px 14px; font-size:14px; pointer-events:none; }
 #coinsHud b{ color:var(--gold); }
 #weaponHud{ position:fixed; bottom:18px; left:50%; transform:translateX(-50%); z-index:30; display:none;
-  background:rgba(36,22,14,.8); border:1px solid var(--line); border-radius:10px; padding:6px 14px; font-size:13px; color:var(--text); }
+  background:rgba(36,22,14,.8); border:1px solid var(--line); border-radius:10px; padding:6px 14px; font-size:13px; color:var(--text); pointer-events:none; }
 #weaponHud b{ color:#ffd25e; }
 
 #board{ position:fixed; top:12px; right:14px; z-index:30; width:150px; display:none; background:rgba(36,22,14,.82);
-  border:1px solid var(--line); border-radius:12px; padding:9px 11px; font-size:12px; }
+  border:1px solid var(--line); border-radius:12px; padding:9px 11px; font-size:12px; pointer-events:none; }
 #board .ttl{ color:var(--muted); margin-bottom:5px; font-size:11px; letter-spacing:1px; }
 #board .row{ display:flex; align-items:center; gap:6px; padding:2.5px 0; }
 #board .row.me{ color:#fff; }
@@ -104,8 +106,8 @@ input::placeholder{ color:#9a7b5e; }
 #board .ex{ color:var(--ok); font-size:10px; }
 #sysLog{ position:fixed; bottom:90px; left:50%; transform:translateX(-50%); z-index:35; display:none;
   background:rgba(36,22,14,.94); border:1px solid var(--line); border-radius:10px; padding:9px 16px;
-  font-size:13px; max-width:86vw; text-align:center; }
-#extractBar{ position:fixed; bottom:140px; left:50%; transform:translateX(-50%); z-index:35; display:none; width:230px; text-align:center; }
+  font-size:13px; max-width:86vw; text-align:center; pointer-events:none; }
+#extractBar{ position:fixed; bottom:140px; left:50%; transform:translateX(-50%); z-index:35; display:none; width:230px; text-align:center; pointer-events:none; }
 #extractBar .lbl{ font-size:13px; color:var(--gold); margin-bottom:5px; text-shadow:0 1px 3px #000; }
 #extractBar .track{ height:10px; border-radius:5px; background:rgba(0,0,0,.5); border:1px solid var(--line); overflow:hidden; }
 #extractBar .fill{ height:100%; width:0%; background:linear-gradient(90deg,#f0c068,#8fce7a); }
@@ -937,15 +939,18 @@ canvas.addEventListener('mousemove',e=>{mouseX=e.clientX;mouseY=e.clientY;});
 canvas.addEventListener('mousedown',e=>{if(e.button===0)mouseDown=true;});
 addEventListener('mouseup',()=>{mouseDown=false;});
 
-/* 双摇杆：moveJoy 左下移动，aimJoy 右下瞄准；动态基座 */
+/* 双摇杆：moveJoy 移动，aimJoy 瞄准；动态基座。
+   第一根手指：左半屏=移动，右半屏=移动（兜底）；
+   第二根手指：右半屏=瞄准。 */
 const moveJoy={active:false,id:null,ox:0,oy:0,dx:0,dy:0};
 const aimJoy ={active:false,id:null,ox:0,oy:0,dx:1,dy:0};
 canvas.addEventListener('touchstart',e=>{
   for(const t of e.changedTouches){
-    const left = t.clientX < innerWidth/2;
-    const j = left ? moveJoy : aimJoy;
-    if(j.active)continue;
-    j.active=true;j.id=t.identifier;j.ox=t.clientX;j.oy=t.clientY;j.dx=0;j.dy=0;
+    if(!moveJoy.active){
+      moveJoy.active=true;moveJoy.id=t.identifier;moveJoy.ox=t.clientX;moveJoy.oy=t.clientY;moveJoy.dx=0;moveJoy.dy=0;
+    }else if(!aimJoy.active && t.clientX>innerWidth/2){
+      aimJoy.active=true;aimJoy.id=t.identifier;aimJoy.ox=t.clientX;aimJoy.oy=t.clientY;aimJoy.dx=1;aimJoy.dy=0;
+    }
   }
   if(e.touches.length)e.preventDefault();
 },{passive:false});
@@ -1094,7 +1099,8 @@ function stepRoundHost(dt){
     if(d<EXTRACT_R){
       extractProg[p.id]=(extractProg[p.id]||0)+dt;
       if(extractProg[p.id]>=EXTRACT_NEED){
-        p.extracted=true;
+        if(p.id===myPeerId)extractDone();
+        else p.extracted=true;
         broadcast({type:'extractDone',id:p.id,coins:p.score});
         broadcast({type:'sys',text:p.name+' 成功撤离，带走 '+p.score+' 金币！'});
       }
@@ -1689,7 +1695,7 @@ function renderBoard(){
     return;
   }
   document.getElementById('friendAdd').style.display='none';
-  const rows=Object.entries(board).map((id,p)=>({id,...p}));
+  const rows=Object.entries(board).map(([id,p])=>({id,...p}));
   rows.sort((a,b)=> lbTab==='coin' ? (b.coins-a.coins) : (b.kills-a.kills));
   if(!rows.length){list.innerHTML='<div class="empty">还没有数据，玩几局后这里会显示排行榜</div>';return;}
   list.innerHTML=rows.slice(0,30).map((p,i)=>
