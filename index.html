@@ -1678,13 +1678,13 @@ function loop(ts){
   }
 }
 
-/* 房主状态广播（10Hz） */
+/* 房主状态广播（12.5Hz，权威数据实时同步） */
 setInterval(()=>{
   if(isHost&&peer&&peer.open&&me){
     if(Object.keys(peer.connections).length>0)broadcast({type:'state',players:serializePlayers(),endTs:roundEndAt,exProg:extractProg});
     if(monsters.length)broadcast({type:'monsters',monsters:monsters.map(m=>({id:m.id,x:Math.round(m.x),y:Math.round(m.y),ph:m.ph}))});
   }
-},100);
+},80);
 /* 道具重生 */
 setInterval(()=>{
   if(!isHost)return;
