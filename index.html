@@ -811,6 +811,7 @@ function handleHostData(msg){
       upselfBoard();
       refreshProfile();
       sfx.extract();
+      alert('撤离成功！\n本局金币 +'+msg.coins+'\n当前总收入：'+stats.coins+'\n(ID: '+myPid+')');
       me.extracted=true;
       me.alive=false;
       me.ghostUntil=9e15;
@@ -1191,6 +1192,7 @@ function extractDone(){
   upselfBoard();
   refreshProfile();
   sfx.extract();
+  alert('撤离成功！\n本局金币 +'+earn+'\n当前总收入：'+stats.coins+'\n(ID: '+myPid+')');
   uiLog('撤离成功！+'+earn+' 金币已入账。点左上角"离开房间"回主菜单。');
   /* 显示离开按钮 */
   if(!window.__leaveBtn){
