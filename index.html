@@ -804,8 +804,11 @@ function handleHostData(msg){
     if(msg.id===myPeerId){
       stats.coins+=msg.coins;stats.extracts++;stats.best=Math.max(stats.best,msg.coins);stats.games++;saveStats();
       upselfBoard();
+      refreshProfile();
       sfx.extract();
       me.extracted=true;
+      me.alive=false;
+      inGame=false;
       $('rsTitle').textContent='撤离成功';
       $('rsSub').textContent='你带走了本局所有收获';
       $('rsEarn').textContent='+'+msg.coins;
@@ -813,8 +816,7 @@ function handleHostData(msg){
       $('btnAgain').style.display='none';
       $('btnRsClose').style.display='none';
       $('result').style.display='flex';
-      inGame=false;
-      setTimeout(()=>{ $('result').style.display='none'; resetToMenu(); refreshProfile(); },3000);
+      setTimeout(()=>{ $('result').style.display='none'; resetToMenu(); refreshProfile(); },4000);
     }else{
       uiLog((players[msg.id]?players[msg.id].name:'玩家')+' 成功撤离！');
     }
@@ -1169,6 +1171,8 @@ function extractDone(){
   if(!me)return;
   if(me.extracted)return; /* 防重入 */
   me.extracted=true;
+  me.alive=false; /* 撤离后不能再动/捡币 */
+  inGame=false;
   const earn=me.score||0;
   /* 入账 */
   stats.coins+=earn;
@@ -1177,6 +1181,7 @@ function extractDone(){
   stats.games++;
   saveStats();
   upselfBoard();
+  refreshProfile(); /* 立即刷新主页数字 */
   sfx.extract();
   /* 显示结果 */
   $('rsTitle').textContent='撤离成功';
@@ -1185,12 +1190,11 @@ function extractDone(){
   $('rsTable').innerHTML='';
   $('btnAgain').style.display='none';
   $('result').style.display='flex';
-  inGame=false;
-  /* 3秒后回主菜单 */
+  /* 4秒后回主菜单 */
   setTimeout(()=>{
     try{ resetToMenu(); }catch(e){ location.reload(); }
     refreshProfile();
-  },3000);
+  },4000);
 }
 function showResult(title,sub,earn){
   $('rsTitle').textContent=title;
