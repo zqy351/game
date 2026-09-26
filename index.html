@@ -562,10 +562,15 @@ const sfx={
 addEventListener('pointerdown',initAudio,{once:true});
 addEventListener('keydown',initAudio,{once:true});
 
-/* ============ 战绩（localStorage） ============ */
-const STAT_KEY='dadi_v3_stats';
-function loadStats(){try{return Object.assign({coins:0,games:0,extracts:0,kills:0,best:0,deaths:0},JSON.parse(localStorage.getItem(STAT_KEY)||'{}'));}catch(e){return {coins:0,games:0,extracts:0,kills:0,best:0,deaths:0};}}
-function saveStats(){try{localStorage.setItem(STAT_KEY,JSON.stringify(stats));}catch(e){}}
+/* ============ 战绩（localStorage，按 ID 独立存储） ============ */
+function statKey(){return 'dadi_stats_'+(myPid||'guest');}
+function loadStats(){
+  try{
+    const raw=localStorage.getItem(statKey());
+    return Object.assign({coins:0,games:0,extracts:0,kills:0,best:0,deaths:0},JSON.parse(raw||'{}'));
+  }catch(e){return {coins:0,games:0,extracts:0,kills:0,best:0,deaths:0};}
+}
+function saveStats(){try{localStorage.setItem(statKey(),JSON.stringify(stats));}catch(e){}}
 let stats=loadStats();
 
 /* ============ 玩家 ID（首次设置，永久） ============ */
@@ -1476,8 +1481,14 @@ function drawScene(ts){
   }
   drawParts();
   ctx.restore();
-  /* 自己画在屏幕正中心 */
-  if(me&&me.alive)drawMyself(ts);
+  /* 自己画在屏幕正中心（撤离后画半透明幽灵） */
+  if(me)drawMyself(ts);
+  /* 撤离后顶部提示 */
+  if(me&&me.extracted){
+    ctx.fillStyle='rgba(255,210,94,.9)';
+    ctx.font='bold 16px "PingFang SC",sans-serif';ctx.textAlign='center';
+    ctx.fillText('✓ 已撤离 · 幽灵观战中',W/2,90);
+  }
   drawMinimap();
 }
 
@@ -1486,6 +1497,8 @@ function drawMyself(ts){
   const now=Date.now();
   const bob=Math.abs(Math.sin(ts/220))*2;
   const sy=y+PLAYER_R*.55;
+  const isGhost=me.extracted||!me.alive;
+  ctx.globalAlpha=isGhost?0.45:1;
   /* 阴影 */
   ctx.fillStyle='rgba(0,0,0,.22)';
   ctx.beginPath();ctx.ellipse(x,sy,PLAYER_R*.8,PLAYER_R*.35,0,0,6.28);ctx.fill();
@@ -1493,15 +1506,15 @@ function drawMyself(ts){
   const grad=ctx.createRadialGradient(x-4,y-5+bob,2,x,y+bob,PLAYER_R);
   grad.addColorStop(0,'rgba(255,255,255,.5)');grad.addColorStop(.4,me.color);grad.addColorStop(1,shade(me.color,-28));
   ctx.beginPath();ctx.arc(x,y+bob,PLAYER_R,0,6.28);ctx.fillStyle=grad;ctx.fill();
-  ctx.lineWidth=2.5;ctx.strokeStyle='rgba(0,0,0,.35)';ctx.stroke();
+  ctx.lineWidth=2.5;ctx.strokeStyle=isGhost?'#a8e6ff':'rgba(0,0,0,.35)';ctx.stroke();
   /* 眼睛 */
   const l=Math.hypot(me.fx||0,me.fy||0)||1,ex=(me.fx||0)/l*3,ey=(me.fy||0)/l*3;
   ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x-5+ex,y-5+bob+ey,4.4,0,6.28);ctx.arc(x+5+ex,y-5+bob+ey,4.4,0,6.28);ctx.fill();
   ctx.fillStyle='#16202b';ctx.beginPath();ctx.arc(x-5+ex*1.5,y-5+bob+ey*1.5,2.2,0,6.28);ctx.arc(x+5+ex*1.5,y-5+bob+ey*1.5,2.2,0,6.28);ctx.fill();
   /* 名字 */
   ctx.font='bold 12px "PingFang SC","Microsoft YaHei",sans-serif';ctx.textAlign='center';
-  ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.7)';ctx.strokeText(me.name,x,y-40);
-  ctx.fillStyle='#fff';ctx.fillText(me.name,x,y-40);
+  ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.7)';ctx.strokeText(me.name+(isGhost?' (幽灵)':''),x,y-40);
+  ctx.fillStyle=isGhost?'#a8e6ff':'#fff';ctx.fillText(me.name+(isGhost?' (幽灵)':''),x,y-40);
   ctx.font='11px "PingFang SC",sans-serif';
   ctx.strokeText(me.score+' 金',x,y-18);
   ctx.fillStyle='#ffd25e';ctx.fillText(me.score+' 金',x,y-18);
@@ -1510,6 +1523,7 @@ function drawMyself(ts){
   ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(x-bw/2,y-34,bw,bh);
   ctx.fillStyle=me.hp>50?'#8fce7a':(me.hp>25?'#e8b93a':'#e06a5a');
   ctx.fillRect(x-bw/2,y-34,bw*me.hp/MAX_HP,bh);
+  ctx.globalAlpha=1;
 }
 
 function drawMinimap(){
@@ -1809,8 +1823,11 @@ $('btnSetupDone').addEventListener('click',()=>{
   if(!nick){$('setupErr').textContent='昵称不能为空';return;}
   myPid=id;saveID(id);
   myName=nick;$('nick').value=nick;
+  /* ID 确定后，加载该账号的独立战绩 */
+  stats=loadStats();
   $('idSetup').style.display='none';
   applyMyID();
+  refreshProfile();
 });
 $('setupId').addEventListener('keydown',e=>{if(e.key==='Enter')$('btnSetupDone').click();});
 
