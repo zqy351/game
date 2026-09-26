@@ -347,7 +347,7 @@ const sysLog=$('sysLog');
 const TILE=50, MAP_W=140, MAP_H=140;
 const WORLD_W=MAP_W*TILE, WORLD_H=MAP_H*TILE;
 const PLAYER_R=16, SPEED=235, MAX_HP=100;
-const ROUND_MS=15*60*1000, EXTRACT_NEED=10, EXTRACT_R=220;
+const ROUND_MS=15*60*1000, EXTRACT_NEED=5, EXTRACT_R=300;
 const COLORS=['#ff6b6b','#4dabf7','#3ddc84','#ffc233','#c77dff','#22d3ee','#f783ac','#b8f34a'];
 const CODE_CHARS='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const ICE_CONFIG={
@@ -802,13 +802,18 @@ function handleHostData(msg){
     }else if(players[msg.id]){players[msg.id].alive=true;players[msg.id].x=msg.x;players[msg.id].y=msg.y;players[msg.id].hp=MAX_HP;players[msg.id].score=0;}
   }else if(msg.type==='extractDone'){
     if(msg.id===myPeerId){
-      stats.coins+=msg.coins;stats.extracts++;stats.best=Math.max(stats.best,msg.coins);saveStats();
+      stats.coins+=msg.coins;stats.extracts++;stats.best=Math.max(stats.best,msg.coins);stats.games++;saveStats();
       upselfBoard();
       sfx.extract();
-      showResult('撤离成功','你带走了本局所有收获','+'+msg.coins);
-      $('rsSub').textContent='战绩已更新，3 秒后返回主菜单…';
+      me.extracted=true;
+      $('rsTitle').textContent='撤离成功';
+      $('rsSub').textContent='你带走了本局所有收获';
+      $('rsEarn').textContent='+'+msg.coins;
+      $('rsTable').innerHTML='';
       $('btnAgain').style.display='none';
       $('btnRsClose').style.display='none';
+      $('result').style.display='flex';
+      inGame=false;
       setTimeout(()=>{ $('result').style.display='none'; resetToMenu(); refreshProfile(); },3000);
     }else{
       uiLog((players[msg.id]?players[msg.id].name:'玩家')+' 成功撤离！');
@@ -1128,7 +1133,7 @@ function tryCollect(p){
 function stepRoundHost(dt){
   if(!isHost||!me||!roundActive)return;
   const now=Date.now();
-  /* 撤离进度 */
+  /* 撤离进度：站在圈里 5 秒即撤离 */
   for(const p of Object.values(players)){
     if(!p.alive||p.extracted){extractProg[p.id]=0;continue;}
     const d=Math.hypot(p.x-EX_X,p.y-EX_Y);
@@ -1136,18 +1141,24 @@ function stepRoundHost(dt){
       extractProg[p.id]=(extractProg[p.id]||0)+dt;
       if(extractProg[p.id]>=EXTRACT_NEED){
         p.extracted=true;
+        extractProg[p.id]=0;
+        broadcast({type:'extractDone',id:p.id,coins:p.score||0});
+        broadcast({type:'sys',text:p.name+' 成功撤离，带走 '+(p.score||0)+' 金币！'});
         if(p.id===myPeerId)extractDone();
-        broadcast({type:'extractDone',id:p.id,coins:p.score});
-        broadcast({type:'sys',text:p.name+' 成功撤离，带走 '+p.score+' 金币！'});
       }
     }else{
       extractProg[p.id]=0;
     }
   }
-  /* 回合结束 */
+  /* 回合结束：只有成功撤离的人带走金币 */
   if(now>=roundEndAt){
     roundActive=false;
-    const results=Object.values(players).map(p=>({name:p.name,color:p.color,coins:p.extracted?p.score:0,extracted:p.extracted,me:p.id===myPeerId}));
+    const results=Object.values(players).map(p=>({
+      name:p.name,color:p.color,
+      coins:p.extracted?(p.score||0):0,
+      extracted:p.extracted,
+      me:p.id===myPeerId
+    }));
     broadcast({type:'roundEnd',results});
     onRoundEnd(results);
   }
@@ -1155,19 +1166,31 @@ function stepRoundHost(dt){
 
 /* ============ 结算 ============ */
 function extractDone(){
-  if(!me||me.extracted)return;
-  try{
-    me.extracted=true; me.alive=false;
-    const earn=me.score||0;
-    stats.coins+=earn; stats.extracts++; stats.best=Math.max(stats.best,earn); saveStats();
-    upselfBoard();
-    showResult('撤离成功','你带走了本局所有收获','+'+earn);
-    $('rsSub').textContent='战绩已更新，3 秒后返回主菜单…';
-    $('btnAgain').style.display='none';
-    $('result').style.display='flex';
-    inGame=false;
-    setTimeout(()=>{ try{ resetToMenu(); refreshProfile(); }catch(e){ location.reload(); } },3000);
-  }catch(e){ console.error('extractDone',e); setTimeout(()=>location.reload(),1500); }
+  if(!me)return;
+  if(me.extracted)return; /* 防重入 */
+  me.extracted=true;
+  const earn=me.score||0;
+  /* 入账 */
+  stats.coins+=earn;
+  stats.extracts++;
+  stats.best=Math.max(stats.best,earn);
+  stats.games++;
+  saveStats();
+  upselfBoard();
+  sfx.extract();
+  /* 显示结果 */
+  $('rsTitle').textContent='撤离成功';
+  $('rsSub').textContent='你带走了本局所有收获';
+  $('rsEarn').textContent='+'+earn;
+  $('rsTable').innerHTML='';
+  $('btnAgain').style.display='none';
+  $('result').style.display='flex';
+  inGame=false;
+  /* 3秒后回主菜单 */
+  setTimeout(()=>{
+    try{ resetToMenu(); }catch(e){ location.reload(); }
+    refreshProfile();
+  },3000);
 }
 function showResult(title,sub,earn){
   $('rsTitle').textContent=title;
@@ -1181,11 +1204,13 @@ function onRoundEnd(results){
   const meRes=results.find(r=>r.me);
   const earn=meRes?meRes.coins:0;
   if(meRes&&meRes.extracted){
-    stats.coins+=earn;stats.extracts++;stats.best=Math.max(stats.best,earn);saveStats();
+    stats.coins+=earn;stats.extracts++;stats.best=Math.max(stats.best,earn);stats.games++;saveStats();
+  } else if(meRes){
+    stats.games++;saveStats();
   }
   $('rsTitle').textContent='回合结束';
   $('rsSub').textContent=isHost?'房主可开始新一局':'等待房主开始新一局';
-  $('rsEarn').textContent=meRes?(meRes.extracted?('+'+meRes.coins+' 已入账'):'未撤离，金币全丢'):'-';
+  $('rsEarn').textContent=meRes?(meRes.extracted?('+'+meRes.coins+' 已入账'):'未撤离，本局金币未入账'):'-';
   results.sort((a,b)=>b.coins-a.coins);
   $('rsTable').innerHTML='<table>'+results.map((r,i)=>
     '<tr><td>'+(i+1)+'.</td><td><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+r.color+'"></span> '+escapeHtml(r.name)+'</td>'+
