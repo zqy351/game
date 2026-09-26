@@ -808,15 +808,18 @@ function handleHostData(msg){
       sfx.extract();
       me.extracted=true;
       me.alive=false;
-      inGame=false;
-      $('rsTitle').textContent='撤离成功';
-      $('rsSub').textContent='你带走了本局所有收获';
-      $('rsEarn').textContent='+'+msg.coins;
-      $('rsTable').innerHTML='';
-      $('btnAgain').style.display='none';
-      $('btnRsClose').style.display='none';
-      $('result').style.display='flex';
-      setTimeout(()=>{ $('result').style.display='none'; resetToMenu(); refreshProfile(); },4000);
+      me.ghostUntil=9e15;
+      uiLog('撤离成功！+'+msg.coins+' 金币已入账。点左上角"离开房间"回主菜单。');
+      if(!window.__leaveBtn){
+        const b=document.createElement('button');
+        b.id='__leaveBtn';
+        b.textContent='离开房间';
+        b.style.cssText='position:fixed;top:50px;left:10px;z-index:99;background:var(--panel);color:var(--gold);border:1px solid var(--line);border-radius:8px;padding:8px 14px;font-size:13px;';
+        b.onclick=()=>{ try{resetToMenu();}catch(e){location.reload();} refreshProfile(); };
+        document.body.appendChild(b);
+        window.__leaveBtn=b;
+      }
+      window.__leaveBtn.style.display='block';
     }else{
       uiLog((players[msg.id]?players[msg.id].name:'玩家')+' 成功撤离！');
     }
@@ -1169,32 +1172,31 @@ function stepRoundHost(dt){
 /* ============ 结算 ============ */
 function extractDone(){
   if(!me)return;
-  if(me.extracted)return; /* 防重入 */
+  if(me.extracted)return;
   me.extracted=true;
-  me.alive=false; /* 撤离后不能再动/捡币 */
-  inGame=false;
+  me.alive=false;
+  me.ghostUntil=9e15; /* 永久幽灵观战 */
   const earn=me.score||0;
-  /* 入账 */
   stats.coins+=earn;
   stats.extracts++;
   stats.best=Math.max(stats.best,earn);
   stats.games++;
   saveStats();
   upselfBoard();
-  refreshProfile(); /* 立即刷新主页数字 */
+  refreshProfile();
   sfx.extract();
-  /* 显示结果 */
-  $('rsTitle').textContent='撤离成功';
-  $('rsSub').textContent='你带走了本局所有收获';
-  $('rsEarn').textContent='+'+earn;
-  $('rsTable').innerHTML='';
-  $('btnAgain').style.display='none';
-  $('result').style.display='flex';
-  /* 4秒后回主菜单 */
-  setTimeout(()=>{
-    try{ resetToMenu(); }catch(e){ location.reload(); }
-    refreshProfile();
-  },4000);
+  uiLog('撤离成功！+'+earn+' 金币已入账。点左上角"离开房间"回主菜单。');
+  /* 显示离开按钮 */
+  if(!window.__leaveBtn){
+    const b=document.createElement('button');
+    b.id='__leaveBtn';
+    b.textContent='离开房间';
+    b.style.cssText='position:fixed;top:50px;left:10px;z-index:99;background:var(--panel);color:var(--gold);border:1px solid var(--line);border-radius:8px;padding:8px 14px;font-size:13px;';
+    b.onclick=()=>{ try{resetToMenu();}catch(e){location.reload();} refreshProfile(); };
+    document.body.appendChild(b);
+    window.__leaveBtn=b;
+  }
+  window.__leaveBtn.style.display='block';
 }
 function showResult(title,sub,earn){
   $('rsTitle').textContent=title;
