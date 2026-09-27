@@ -305,7 +305,7 @@ input::placeholder{ color:#9a7b5e; }
   <div id="hpTxt">100 / 100</div>
 </div>
 <div id="timer">15:00</div>
-<div id="coinsHud">本局持有 <b id="myCoins">0</b> 金币</div>
+<div id="coinsHud">本局 <b id="myCoins">0</b> 金 · <b id="myKills">0</b> 杀</div>
 <div id="weaponHud"><b id="wpnName">手枪</b></div>
 <div id="board"></div>
 <div id="sysLog"></div>
@@ -1721,6 +1721,7 @@ function loop(ts){
     $('hpFill').style.background=(me&&me.hp>50)?'linear-gradient(90deg,#8fce7a,#b8e08a)':((me&&me.hp>25)?'#e8b93a':'#e06a5a');
     $('hpTxt').textContent=(me?Math.max(0,Math.round(me.hp)):0)+' / '+MAX_HP;
     $('myCoins').textContent=me?me.score:0;
+    $('myKills').textContent=me?(me.kills||0):0;
     $('wpnName').textContent=(GUNS[me?me.weapon:'pistol']||GUNS.pistol).name;
     /* 倒计时 */
     const left=Math.max(0,roundEndAt-Date.now());
