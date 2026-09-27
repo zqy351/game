@@ -796,9 +796,10 @@ function handleHostData(msg){
   }else if(msg.type==='hit'){
     if(msg.target===myPeerId){
       shake=8;sfx.hit();
-      if(me)burst(me.x,me.y,'#ff6b6b',14,120);
+      if(me){burst(me.x,me.y,'#ff6b6b',14,120);floaters.push({x:me.x,y:me.y-20,text:'-'+msg.dmg,life:1,color:'#ff6b6b'});}
     }else if(players[msg.target]){
       burst(players[msg.target].x,players[msg.target].y,'#ff6b6b',8,100);
+      floaters.push({x:players[msg.target].x,y:players[msg.target].y-20,text:'-'+msg.dmg,life:1,color:'#ff6b6b'});
     }
     if(msg.from===myPeerId){stats.kills++;saveStats();}
   }else if(msg.type==='died'){
