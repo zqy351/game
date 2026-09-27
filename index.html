@@ -1437,6 +1437,12 @@ function drawPlayer(p,isMe,ts){
   ctx.font='11px "PingFang SC",sans-serif';
   ctx.strokeStyle='rgba(0,0,0,.6)';ctx.strokeText(p.score+' 金',x,y-18);
   ctx.fillStyle=isMe?'#ffd25e':'#dfe7f0';ctx.fillText(p.score+' 金',x,y-18);
+  /* 武器名 */
+  if(p.weapon&&p.weapon!=='pistol'){
+    ctx.font='10px "PingFang SC",sans-serif';
+    ctx.fillStyle='#a8e6ff';
+    ctx.fillText(({shotgun:'霰弹枪',rifle:'步枪',sniper:'狙击枪',smg:'冲锋枪'}[p.weapon]||p.weapon),x,y+28);
+  }
   if(now<p.boostUntil){
     ctx.strokeStyle='#ffd25e';ctx.globalAlpha=alpha*(.5+Math.sin(ts/80)*.25);ctx.lineWidth=2;
     ctx.beginPath();ctx.arc(x,y,PLAYER_R+6,0,6.28);ctx.stroke();ctx.globalAlpha=alpha;
