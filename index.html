@@ -314,6 +314,7 @@ input::placeholder{ color:#9a7b5e; }
   <div class="track"><div class="fill" id="exFill"></div></div>
 </div>
 <div id="fireBtn">开火</div>
+<div id="sprintBtn" style="position:fixed;right:110px;bottom:90px;z-index:31;width:56px;height:56px;border-radius:50%;background:rgba(36,22,14,.7);border:1px solid var(--line);color:#fff;font-size:13px;display:none;align-items:center;justify-content:center;">疾跑</div>
 <div id="joy"><div id="joyKnob"></div></div>
 <div id="exArrow">▲</div>
 <div id="emoteBar">
@@ -871,6 +872,7 @@ function resetToMenu(){
   $('menu').style.display='flex';$('hud').style.display='none';$('hpWrap').style.display='none';
   $('timer').style.display='none';$('coinsHud').style.display='none';$('weaponHud').style.display='none';
   $('board').style.display='none';$('emoteBar').style.display='none';$('fireBtn').style.display='none';
+  $('sprintBtn').style.display='none';
   $('result').style.display='none';$('extractBar').style.display='none';
   $('joy').style.display='none';$('exArrow').style.display='none';
 }
@@ -878,6 +880,7 @@ function showGame(){
   $('menu').style.display='none';$('hud').style.display='flex';$('hpWrap').style.display='block';
   $('timer').style.display='block';$('coinsHud').style.display='block';$('weaponHud').style.display='block';
   $('board').style.display='block';$('emoteBar').style.display='flex';$('fireBtn').style.display=IS_TOUCH?'flex':'none';
+  $('sprintBtn').style.display=IS_TOUCH?'flex':'none';
   if(IS_TOUCH)$('joy').style.display='block';
   $('roomCodeText').textContent=roomCode;inGame=true;
 }
@@ -1050,6 +1053,8 @@ let fireHeld=false;
 $('fireBtn').addEventListener('touchstart',e=>{e.preventDefault();fireHeld=true;},{passive:false});
 $('fireBtn').addEventListener('touchend',()=>{fireHeld=false;});
 $('fireBtn').addEventListener('mousedown',e=>{e.preventDefault();fireHeld=true;});
+$('sprintBtn').addEventListener('touchstart',e=>{e.preventDefault();keys['ShiftLeft']=true;},{passive:false});
+$('sprintBtn').addEventListener('touchend',()=>{keys['ShiftLeft']=false;});
 addEventListener('mouseup',()=>{fireHeld=false;});
 
 function inputVec(){
@@ -1685,7 +1690,8 @@ function loop(ts){
   if(me&&inGame){
     const v=inputVec();
     const boosted=Date.now()-me.boostUntil<0;
-    const spd=SPEED*(boosted?1.6:1)*speedAt(Math.floor(me.x/TILE),Math.floor(me.y/TILE));
+    const sprinting=keys['ShiftLeft']||keys['ShiftRight'];
+    const spd=SPEED*(boosted?1.6:1)*(sprinting?1.35:1)*speedAt(Math.floor(me.x/TILE),Math.floor(me.y/TILE));
     if(v.len>0){
       me.fx=v.dx/v.len;me.fy=v.dy/v.len;
       movePlayer(me,me.fx*spd*dt,me.fy*spd*dt);
