@@ -508,6 +508,7 @@ function spawnMonster(){
 
 /* ============ 粒子（上限控制） ============ */
 let parts=[];
+let floaters=[]; /* 飘字 */
 function burst(x,y,color,n,spd){
   if(parts.length>220)parts.splice(0,parts.length-220);
   for(let i=0;i<n;i++){
@@ -525,6 +526,14 @@ function drawParts(){
   for(const p of parts){
     ctx.globalAlpha=Math.max(0,p.life);
     ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size*p.life,0,6.28);ctx.fill();
+  }
+  for(let i=floaters.length-1;i>=0;i--){
+    const f=floaters[i];
+    f.y-=0.6;f.life-=0.015;
+    if(f.life<=0){floaters.splice(i,1);continue;}
+    ctx.globalAlpha=f.life;
+    ctx.font='bold 14px "PingFang SC",sans-serif';ctx.textAlign='center';
+    ctx.fillStyle=f.color;ctx.fillText(f.text,f.x,f.y);
   }
   ctx.globalAlpha=1;
 }
@@ -1139,6 +1148,10 @@ function tryCollect(p){
       else if(it.kind==='crate')p.weapon=it.weapon||'pistol';
       else if(it.kind==='bag')p.score+=it.value||0;
       burst(it.x,it.y,it.kind==='gem'?'#59d0ff':(it.kind==='crown'?'#ffd700':(it.kind==='diamond'?'#a8e6ff':(it.kind==='boost'?'#ffd25e':(it.kind==='ghost'?'#c77dff':'#f0c068')))),it.kind==='coin'?10:18,90);
+      if(it.kind==='coin'||it.kind==='gem'||it.kind==='diamond'||it.kind==='crown'||it.kind==='bag'){
+        const v=it.kind==='coin'?1:it.kind==='gem'?5:it.kind==='diamond'?20:it.kind==='crown'?50:(it.value||0);
+        floaters.push({x:it.x,y:it.y,text:'+'+v,life:1,color:v>=20?'#ffd700':'#fff'});
+      }
       if(it.kind==='coin')sfx.coin();
       else if(it.kind==='gem'||it.kind==='diamond'||it.kind==='crown')sfx.gem();
       else if(it.kind==='boost')sfx.boost();
