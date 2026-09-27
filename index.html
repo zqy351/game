@@ -1898,6 +1898,7 @@ if(!myPid){
 }else{
   applyMyID();
   $('nick').value=localStorage.getItem('dadi_v3_nick')||('玩家'+Math.floor(10+Math.random()*90));
+  refreshProfile();
 }
 /* 昵称变化时记住 */
 $('nick').addEventListener('change',()=>{try{localStorage.setItem('dadi_v3_nick',$('nick').value);}catch(e){}});
