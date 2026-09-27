@@ -1621,6 +1621,9 @@ function tryFire(){
   lastShotAt=now;
   const a=aimDir();
   sfx.shoot(me.weapon);
+  shake=Math.max(shake,g.pellets>1?5:3);
+  /* 枪口火光 */
+  burst(me.x+a.dx*18,me.y+a.dy*18,'#ffd25e',6,80);
   /* 本地预测子弹 */
   for(let i=0;i<g.pellets;i++){
     const ang=Math.atan2(a.dy,a.dx)+(Math.random()-.5)*2*g.spread;
