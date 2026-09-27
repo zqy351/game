@@ -811,7 +811,14 @@ function handleHostData(msg){
       upselfBoard();
       refreshProfile();
       sfx.extract();
-      alert('撤离成功！\n本局金币 +'+msg.coins+'\n当前总收入：'+stats.coins+'\n(ID: '+myPid+')');
+      if(!window.__toast){
+        window.__toast=document.createElement('div');
+        window.__toast.style.cssText='position:fixed;top:140px;left:50%;transform:translateX(-50%);z-index:9999;background:linear-gradient(135deg,#8fce7a,#5a9e4a);color:#fff;padding:14px 28px;border-radius:12px;font-size:16px;font-weight:bold;box-shadow:0 4px 20px rgba(0,0,0,.5);text-align:center;';
+        document.body.appendChild(window.__toast);
+      }
+      window.__toast.innerHTML='✓ 撤离成功！+'+msg.coins+' 金币<br/><small style="font-size:12px;opacity:.9">总收入: '+stats.coins+' · ID:'+myPid+'</small>';
+      window.__toast.style.display='block';
+      setTimeout(()=>{window.__toast.style.display='none';},5000);
       me.extracted=true;
       me.alive=false;
       me.ghostUntil=9e15;
@@ -1192,7 +1199,15 @@ function extractDone(){
   upselfBoard();
   refreshProfile();
   sfx.extract();
-  alert('撤离成功！\n本局金币 +'+earn+'\n当前总收入：'+stats.coins+'\n(ID: '+myPid+')');
+  /* 顶部大提示 */
+  if(!window.__toast){
+    window.__toast=document.createElement('div');
+    window.__toast.style.cssText='position:fixed;top:140px;left:50%;transform:translateX(-50%);z-index:9999;background:linear-gradient(135deg,#8fce7a,#5a9e4a);color:#fff;padding:14px 28px;border-radius:12px;font-size:16px;font-weight:bold;box-shadow:0 4px 20px rgba(0,0,0,.5);text-align:center;';
+    document.body.appendChild(window.__toast);
+  }
+  window.__toast.innerHTML='✓ 撤离成功！+'+earn+' 金币<br/><small style="font-size:12px;opacity:.9">总收入: '+stats.coins+' · ID:'+myPid+'</small>';
+  window.__toast.style.display='block';
+  setTimeout(()=>{window.__toast.style.display='none';},5000);
   uiLog('撤离成功！+'+earn+' 金币已入账。点左上角"离开房间"回主菜单。');
   /* 显示离开按钮 */
   if(!window.__leaveBtn){
