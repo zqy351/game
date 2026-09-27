@@ -1596,10 +1596,15 @@ function drawMinimap(){
     if(p.id===myPeerId){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();}
   };
   for(const p of Object.values(players))dot(p);
-  /* 自己强制画 */
+  /* 自己强制画 + 朝向箭头 */
   if(me){
-    ctx.fillStyle=me.color;ctx.beginPath();ctx.arc(x+me.x*k,y+me.y*k,3.5,0,6.28);ctx.fill();
+    const mxp=x+me.x*k,myp=y+me.y*k;
+    ctx.fillStyle=me.color;ctx.beginPath();ctx.arc(mxp,myp,3.5,0,6.28);ctx.fill();
     ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();
+    const a=Math.atan2(me.fy||0,me.fx||0);
+    ctx.strokeStyle='#fff';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(mxp,myp);
+    ctx.lineTo(mxp+Math.cos(a)*7,myp+Math.sin(a)*7);ctx.stroke();
   }
   /* 视野框 */
   ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=1;
