@@ -1736,14 +1736,16 @@ function loop(ts){
     }else{
       $('extractBar').style.display='none';
     }
-    /* 撤离方向箭头 */
+    /* 撤离方向箭头+距离 */
     if(me.alive){
       const ang=Math.atan2(EX_Y-me.y,EX_X-me.x);
+      const dist=Math.round(Math.hypot(EX_X-me.x,EX_Y-me.y)/50);
       const ex=$('exArrow');
       ex.style.display='block';
       ex.style.left=(W/2+Math.cos(ang)*Math.min(W,H)*0.38)+'px';
       ex.style.top=(H/2+Math.sin(ang)*Math.min(W,H)*0.38)+'px';
       ex.style.transform=`translate(-50%,-50%) rotate(${ang*180/Math.PI+90}deg)`;
+      ex.textContent='⬇\n'+dist+'m';
     }else{$('exArrow').style.display='none';}
   }
   if(ts-lastBoard>400&&inGame){
