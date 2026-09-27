@@ -1775,10 +1775,14 @@ setInterval(()=>{
 /* ============ UI ============ */
 let logT=0;
 function uiLog(txt){
-  sysLog.innerHTML='<span>'+escapeHtml(txt)+'</span>';
+  const now=new Date();
+  const t=now.toTimeString().slice(0,8);
+  sysLog.innerHTML='<div style="margin-top:2px;opacity:.9"><span style="color:#888;font-size:10px">'+t+'</span> '+escapeHtml(txt)+'</div>'+sysLog.innerHTML;
+  /* 最多留5条 */
+  while(sysLog.children.length>5)sysLog.removeChild(sysLog.lastChild);
   sysLog.style.display='block';
   clearTimeout(logT);
-  logT=setTimeout(()=>{sysLog.style.display='none';},3500);
+  logT=setTimeout(()=>{sysLog.style.display='none';},5000);
 }
 function showLoading(t){$('menuLog').textContent=t;$('btnCreate').disabled=true;$('btnJoin').disabled=true;}
 function hideLoading(){$('menuLog').textContent='';$('btnCreate').disabled=false;$('btnJoin').disabled=false;}
