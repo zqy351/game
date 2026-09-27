@@ -960,6 +960,8 @@ function cleanupPeer(){
 function resetToMenu(){
   cleanupPeer();joining=false;
   if(window.__leaveBtn)window.__leaveBtn.style.display='none';
+  stats=loadStats();
+  refreshProfile();
   $('menu').style.display='flex';$('hud').style.display='none';$('hpWrap').style.display='none';
   $('timer').style.display='none';$('coinsHud').style.display='none';$('weaponHud').style.display='none';
   $('board').style.display='none';$('emoteBar').style.display='none';$('fireBtn').style.display='none';
@@ -1305,7 +1307,13 @@ function extractDone(){
   stats.extracts++;
   stats.best=Math.max(stats.best,earn);
   stats.games++;
+  /* 双重写入：当前ID key + 全局备份 key */
   saveStats();
+  try{
+    const backup=JSON.parse(localStorage.getItem('dadi_global_coins')||'{"coins":0}');
+    backup.coins=(backup.coins||0)+earn;
+    localStorage.setItem('dadi_global_coins',JSON.stringify(backup));
+  }catch(e){}
   upselfBoard();
   refreshProfile();
   sfx.extract();
@@ -1904,6 +1912,11 @@ function showLoading(t){$('menuLog').textContent=t;$('btnCreate').disabled=true;
 function hideLoading(){$('menuLog').textContent='';$('btnCreate').disabled=false;$('btnJoin').disabled=false;}
 
 function refreshProfile(){
+  /* 重新从 localStorage 读取，确保最新 */
+  try{
+    const raw=localStorage.getItem(statKey());
+    if(raw){const s=JSON.parse(raw);Object.assign(stats,s);}
+  }catch(e){}
   $('profName').textContent='玩家：'+($('nick').value.trim()||'我');
   $('stCoins').textContent=stats.coins;
   $('stGames').textContent=stats.games;
