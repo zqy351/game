@@ -69,6 +69,17 @@ input::placeholder{ color:#9a7b5e; }
 .stat .v{ font-size:22px; font-weight:800; color:var(--gold); }
 .stat .k{ font-size:11px; color:var(--muted); margin-top:3px; }
 #profile .row{ display:flex; gap:10px; margin-top:4px; }
+#shop,#inv{ position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center; padding:20px;
+  background:rgba(20,12,8,.82); backdrop-filter:blur(3px); }
+#shop .card,#inv .card{ width:min(420px,100%); background:var(--panel2); border:1px solid var(--line); border-radius:18px; padding:26px 24px; }
+#shop h2,#inv h2{ font-size:19px; text-align:center; color:#fff; letter-spacing:3px; margin-bottom:4px; }
+.shop-item{ display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid var(--line); }
+.shop-item .info{ flex:1; }
+.shop-item .nm{ font-size:14px; color:#fff; }
+.shop-item .ds{ font-size:11px; color:var(--muted); margin-top:2px; }
+.shop-item .pr{ color:var(--gold); font-weight:bold; margin:0 10px; }
+.shop-item button{ background:var(--gold); color:#2a1a0e; border:none; border-radius:8px; padding:6px 14px; font-size:12px; font-weight:bold; }
+.shop-item button:disabled{ background:#555; color:#999; }
 
 /* ===== HUD ===== */
 #hud{ position:fixed; top:12px; left:12px; z-index:30; display:none; gap:8px; align-items:flex-start; flex-wrap:wrap; max-width:60vw; pointer-events:none; }
@@ -265,6 +276,8 @@ input::placeholder{ color:#9a7b5e; }
     <div class="menu-grid">
       <button id="btnBoard">排行榜</button>
       <button id="btnProfile">个人主页</button>
+      <button id="btnShop">商城</button>
+      <button id="btnInv">仓库</button>
     </div>
     <div id="menuLog"></div>
     <p class="tip">操作：WASD/摇杆移动 · 鼠标/开火键射击 · 走到武器箱换枪。<br/>
@@ -290,6 +303,25 @@ input::placeholder{ color:#9a7b5e; }
       <button class="btn secondary" id="btnCloseProfile">关闭</button>
       <button class="btn secondary" id="btnResetStats">清空战绩</button>
     </div>
+  </div>
+</div>
+
+<!-- ===== 商城 ===== -->
+<div id="shop" class="modal">
+  <div class="card">
+    <h2>商城</h2>
+    <p style="color:var(--gold);text-align:center;margin:8px 0;">余额：<b id="shopCoins">0</b> 金币</p>
+    <div id="shopList" style="max-height:50vh;overflow-y:auto;"></div>
+    <div class="row" style="margin-top:12px;"><button class="btn secondary" id="btnCloseShop">关闭</button></div>
+  </div>
+</div>
+
+<!-- ===== 仓库 ===== -->
+<div id="inv" class="modal">
+  <div class="card">
+    <h2>我的仓库</h2>
+    <div id="invList" style="max-height:50vh;overflow-y:auto;"></div>
+    <div class="row" style="margin-top:12px;"><button class="btn secondary" id="btnCloseInv">关闭</button></div>
   </div>
 </div>
 
@@ -619,10 +651,67 @@ let peer=null,hostConn=null,isHost=false,roomCode='',myPeerId='';
 let me=null,players={};
 let inGame=false,joined=false,shake=0,roundEndAt=0,roundActive=true;
 let myName='',myColor=COLORS[Math.floor(Math.random()*COLORS.length)];
+
+/* ============ 商城/仓库 ============ */
+const SHOP_ITEMS=[
+  {id:'armor1',nm:'防弹衣 I',ds:'减伤 20%',price:200,type:'armor',val:.2},
+  {id:'armor2',nm:'防弹衣 II',ds:'减伤 35%',price:500,type:'armor',val:.35},
+  {id:'armor3',nm:'防弹衣 III',ds:'减伤 50%',price:1200,type:'armor',val:.5},
+  {id:'helmet',nm:'头盔',ds:'减爆头伤 40%',price:300,type:'armor',val:.4},
+  {id:'mag1',nm:'扩容弹匣',ds:'子弹+50%',price:250,type:'mag',val:1.5},
+  {id:'mag2',nm:'极速弹匣',ds:'射速+25%',price:400,type:'rof',val:1.25},
+  {id:'silencer',nm:'消音器',ds:'开枪不暴露位置',price:350,type:'silent',val:1},
+  {id:'heavy',nm:'穿甲弹',ds:'伤害+30%',price:600,type:'dmg',val:1.3},
+  {id:'medkit',nm:'医疗包',ds:'开局回满生命',price:150,type:'hp',val:100},
+  {id:'boots',nm:'战术靴',ds:'移速+15%',price:300,type:'speed',val:1.15},
+];
+function invKey(){return 'dadi_inv_'+(myPid||'guest');}
+function loadInv(){try{return JSON.parse(localStorage.getItem(invKey())||'[]');}catch(e){return [];}}
+function saveInv(a){try{localStorage.setItem(invKey(),JSON.stringify(a));}catch(e){}}
+let myInv=loadInv();
+function hasItem(id){return myInv.some(i=>i===id);}
+function buyItem(id){
+  const it=SHOP_ITEMS.find(i=>i.id===id);
+  if(!it)return;
+  if(hasItem(id))return;
+  if(stats.coins<it.price){uiLog('金币不足！');return;}
+  stats.coins-=it.price;saveStats();
+  myInv.push(id);saveInv(myInv);
+  refreshShop();refreshProfile();
+  uiLog('购买成功：'+it.nm);
+}
+function refreshShop(){
+  $('shopCoins').textContent=stats.coins;
+  $('shopList').innerHTML=SHOP_ITEMS.map(it=>{
+    const owned=hasItem(it.id);
+    return '<div class="shop-item"><div class="info"><div class="nm">'+it.nm+'</div><div class="ds">'+it.ds+'</div></div>'+
+      '<span class="pr">'+it.price+'</span><button '+(owned?'disabled':'')+' onclick="buyItem(\''+it.id+'\')">'+(owned?'已拥有':'购买')+'</button></div>';
+  }).join('');
+}
+function refreshInv(){
+  if(!myInv.length){$('invList').innerHTML='<p style="text-align:center;color:var(--muted);padding:20px;">仓库是空的，去商城逛逛吧</p>';return;}
+  $('invList').innerHTML=myInv.map(id=>{
+    const it=SHOP_ITEMS.find(i=>i.id===id);
+    if(!it)return '';
+    return '<div class="shop-item"><div class="info"><div class="nm">'+it.nm+'</div><div class="ds">'+it.ds+'</div></div><span style="color:#8fce7a;font-size:12px;">已装备</span></div>';
+  }).join('');
+}
+window.buyItem=buyItem;
 let extractProg={}; /* 房主：每玩家已撤离秒数 */
-function freshPlayer(){const s=spawnPos();return {id:'',name:myName,color:myColor,x:s.x,y:s.y,rx:s.x,ry:s.y,
+function freshPlayer(){const s=spawnPos();const p={id:'',name:myName,color:myColor,x:s.x,y:s.y,rx:s.x,ry:s.y,
   score:0,hp:MAX_HP,alive:true,weapon:'pistol',invulnUntil:0,boostUntil:0,ghostUntil:0,extracted:false,
-  fx:0,fy:0,phase:Math.random()*6.28,deadUntil:0,kills:0};}
+  fx:0,fy:0,phase:Math.random()*6.28,deadUntil:0,kills:0,armor:0,dmgMul:1,spdMul:1};
+  /* 应用仓库装备 */
+  for(const id of myInv){
+    const it=SHOP_ITEMS.find(i=>i.id===id);
+    if(!it)continue;
+    if(it.type==='armor')p.armor=Math.max(p.armor,it.val);
+    else if(it.type==='dmg')p.dmgMul*=it.val;
+    else if(it.type==='speed')p.spdMul*=it.val;
+    else if(it.type==='hp')p.hp=MAX_HP;
+  }
+  return p;
+}
 
 /* ============ 网络 ============ */
 function serializePlayers(){
@@ -698,8 +787,9 @@ function handleHostMsg(id,msg){
         const perp=Math.abs(dxq*py-dyq*px);
         if(perp<PLAYER_R+7){
           if(now<q.invulnUntil)break;
-          q.hp-=g.dmg;
-          broadcast({type:'hit',target:q.id,from:p.id,dmg:g.dmg});
+          const dmg=Math.round(g.dmg*(1-(q.armor||0)));
+          q.hp-=dmg;
+          broadcast({type:'hit',target:q.id,from:p.id,dmg:dmg});
           if(q.hp<=0){
             q.hp=0;q.alive=false;q.deadUntil=now+5000;
             p.kills=(p.kills||0)+1;
@@ -806,10 +896,11 @@ function handleHostData(msg){
   }else if(msg.type==='died'){
     if(msg.id===myPeerId){
       stats.deaths++;saveStats();
-      uiLog('你被 '+ (players[msg.killer]?players[msg.killer].name:'敌人') +' 击杀！金币已全部掉落');
+      uiLog('💀 你被 '+(players[msg.killer]?players[msg.killer].name:'敌人')+' 击杀！金币已全部掉落');
       sfx.die();shake=14;
     }else{
-      uiLog((players[msg.id]?players[msg.id].name:'玩家')+' 被击杀，掉落 '+msg.bag+' 金币');
+      const k=players[msg.killer]?players[msg.killer].name:'环境';
+      uiLog('💀 '+(players[msg.id]?players[msg.id].name:'玩家')+' 被 '+k+' 击杀，掉落 '+msg.bag+' 金币');
     }
   }else if(msg.type==='respawn'){
     if(msg.id===myPeerId){
@@ -1672,8 +1763,9 @@ function hostApplyShot(p,dx,dy){
       const perp=Math.abs(dxq*py-dyq*px);
       if(perp<PLAYER_R+7){
         if(now<q.invulnUntil)break;
-        q.hp-=g.dmg;
-        broadcast({type:'hit',target:q.id,from:p.id,dmg:g.dmg});
+        const dmg=Math.round(g.dmg*(p.dmgMul||1)*(1-(q.armor||0)));
+        q.hp-=dmg;
+        broadcast({type:'hit',target:q.id,from:p.id,dmg:dmg});
         if(q.hp<=0){
           q.hp=0;q.alive=false;q.deadUntil=now+5000;p.kills=(p.kills||0)+1;
           const bag={id:items.length,kind:'bag',x:q.x,y:q.y,taken:false,takenAt:0,value:q.score||0};
@@ -1696,7 +1788,7 @@ function loop(ts){
     const v=inputVec();
     const boosted=Date.now()-me.boostUntil<0;
     const sprinting=keys['ShiftLeft']||keys['ShiftRight'];
-    const spd=SPEED*(boosted?1.6:1)*(sprinting?1.35:1)*speedAt(Math.floor(me.x/TILE),Math.floor(me.y/TILE));
+    const spd=SPEED*(boosted?1.6:1)*(sprinting?1.35:1)*(me.spdMul||1)*speedAt(Math.floor(me.x/TILE),Math.floor(me.y/TILE));
     if(v.len>0){
       me.fx=v.dx/v.len;me.fy=v.dy/v.len;
       movePlayer(me,me.fx*spd*dt,me.fy*spd*dt);
@@ -1838,6 +1930,10 @@ $('roomCode').addEventListener('keydown',e=>{
   }
 });
 $('btnProfile').addEventListener('click',()=>{refreshProfile();$('profile').style.display='flex';});
+$('btnShop').addEventListener('click',()=>{refreshShop();$('shop').style.display='flex';});
+$('btnInv').addEventListener('click',()=>{refreshInv();$('inv').style.display='flex';});
+$('btnCloseShop').addEventListener('click',()=>$('shop').style.display='none');
+$('btnCloseInv').addEventListener('click',()=>$('inv').style.display='none');
 $('btnCloseProfile').addEventListener('click',()=>{$('profile').style.display='none';});
 $('btnResetStats').addEventListener('click',()=>{
   stats={coins:0,games:0,extracts:0,kills:0,best:0,deaths:0};saveStats();refreshProfile();
