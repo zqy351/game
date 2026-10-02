@@ -90,7 +90,7 @@ input::placeholder{ color:#9a7b5e; }
 .hud-btn{ background:rgba(255,235,205,.1); border:1px solid var(--line); color:var(--text); border-radius:8px;
   padding:6px 9px; font-size:12px; cursor:pointer; }
 .hud-btn:hover{ background:rgba(255,235,205,.2); }
-#hpWrap{ position:fixed; top:12px; left:12px; z-index:29; display:none; width:170px; pointer-events:none; }
+#hpWrap{ position:fixed; top:56px; left:12px; z-index:29; display:none; width:170px; pointer-events:none; }
 #hpBar{ height:12px; border-radius:6px; background:rgba(0,0,0,.5); border:1px solid var(--line); overflow:hidden; }
 #hpFill{ height:100%; width:100%; background:linear-gradient(90deg,#8fce7a,#b8e08a); transition:width .15s; }
 #hpTxt{ font-size:11px; color:var(--text); margin-top:3px; text-shadow:0 1px 2px #000; }
@@ -158,14 +158,16 @@ input::placeholder{ color:#9a7b5e; }
 #result .row{ display:flex; gap:10px; }
 
 @media (max-width:560px){
-  #board{ width:112px; top:64px; }
-  #board .nm{ max-width:44px; }
-  #hud{ max-width:46vw; }
-  .hud-box{ padding:5px 8px; font-size:12px; }
-  input{ font-size:16px; }
-  #hpWrap{ width:120px; }
-  #timer{ font-size:17px; padding:6px 12px; }
-  #emoteBar{ right:10px; bottom:190px; }
+  #board{ width:104px; top:12px; right:8px; }
+  #board .nm{ max-width:40px; }
+  #hud{ max-width:46vw; top:8px; left:8px; gap:5px; }
+  #hud .hud-box{ padding:5px 8px; font-size:12px; }
+  .hud-btn{ padding:5px 8px; font-size:11px; }
+  #hpWrap{ top:96px; left:8px; width:120px; }
+  #timer{ top:8px; font-size:15px; padding:5px 10px; }
+  #coinsHud{ top:52px; font-size:12px; padding:4px 10px; }
+  #weaponHud{ bottom:8px; font-size:12px; padding:5px 12px; }
+  #emoteBar{ right:8px; bottom:196px; }
 }
 
 /* ===== 加载动画 ===== */
@@ -385,6 +387,7 @@ const sysLog=$('sysLog');
 const TILE=50, MAP_W=140, MAP_H=140;
 const WORLD_W=MAP_W*TILE, WORLD_H=MAP_H*TILE;
 const PLAYER_R=16, SPEED=235, MAX_HP=100;
+const REVIVE_MAX=2; /* 每局每人最多复活 2 次，用尽后永久幽灵 */
 const ROUND_MS=15*60*1000, EXTRACT_NEED=5, EXTRACT_R=300;
 const COLORS=['#ff6b6b','#4dabf7','#3ddc84','#ffc233','#c77dff','#22d3ee','#f783ac','#b8f34a'];
 const CODE_CHARS='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -667,19 +670,41 @@ const SLOTS=[
 ];
 const SHOP_ITEMS=[
   /* 武器（槽位 weapon） */
-  {id:'rifle',nm:'步枪 M4',ds:'伤害 12 · 中距离',price:800,slot:'weapon',weapon:'rifle',icon:'🔫'},
-  {id:'shotgun',nm:'霰弹枪 S12',ds:'伤害 8×5 · 近战',price:900,slot:'weapon',weapon:'shotgun',icon:'🔫'},
-  {id:'smg',nm:'冲锋枪 UZI',ds:'伤害 6 · 射速极快',price:700,slot:'weapon',weapon:'smg',icon:'🔫'},
-  {id:'sniper',nm:'狙击枪 AWM',ds:'伤害 45 · 远距离',price:1500,slot:'weapon',weapon:'sniper',icon:'🔫'},
+  {id:'rifle',nm:'步枪 M4',price:300,slot:'weapon',weapon:'rifle',icon:'🔫',
+   tag:'突击步枪',tier:'稀有',dmg:12,range:'中',rate:'中',durability:80,
+   ds:'伤害 12 · 中距离 · 弹匣 30',stats:[['伤害',12],['射程','中'],['射速','中'],['耐久',80]]},
+  {id:'shotgun',nm:'霰弹枪 S12',price:350,slot:'weapon',weapon:'shotgun',icon:'🔫',
+   tag:'近战之王',tier:'稀有',dmg:8,range:'近',rate:'慢',durability:70,
+   ds:'伤害 8×5 弹丸 · 近战爆发',stats:[['伤害',8],['弹丸',5],['射程','近'],['耐久',70]]},
+  {id:'smg',nm:'冲锋枪 UZI',price:250,slot:'weapon',weapon:'smg',icon:'🔫',
+   tag:'速射神器',tier:'普通',dmg:6,range:'中',rate:'极快',durability:60,
+   ds:'伤害 6 · 射速极快 · 弹匣 40',stats:[['伤害',6],['射程','中'],['射速','极快'],['耐久',60]]},
+  {id:'sniper',nm:'狙击枪 AWM',price:500,slot:'weapon',weapon:'sniper',icon:'🔫',
+   tag:'一枪致命',tier:'史诗',dmg:45,range:'远',rate:'慢',durability:90,
+   ds:'伤害 45 · 超远距离 · 一发入魂',stats:[['伤害',45],['射程','远'],['射速','慢'],['耐久',90]]},
   /* 防具（槽位 armor/helmet/boots） */
-  {id:'armor1',nm:'防弹衣 I',ds:'减伤 20%',price:200,slot:'armor',armor:.2,icon:'🛡️'},
-  {id:'armor2',nm:'防弹衣 II',ds:'减伤 35%',price:500,slot:'armor',armor:.35,icon:'🛡️'},
-  {id:'armor3',nm:'防弹衣 III',ds:'减伤 50%',price:1200,slot:'armor',armor:.5,icon:'🛡️'},
-  {id:'helmet',nm:'战术头盔',ds:'额外减伤 10%',price:300,slot:'helmet',helmet:.1,icon:'🪖'},
-  {id:'boots',nm:'战术靴',ds:'移速 +15%',price:300,slot:'boots',speed:1.15,icon:'👟'},
+  {id:'armor1',nm:'防弹衣 I',price:100,slot:'armor',armor:.2,icon:'🛡️',
+   tag:'基础防护',tier:'普通',defense:20,durability:50,
+   ds:'减伤 20% · 初级防御',stats:[['减伤',20],['防御等级','I'],['耐久',50]]},
+  {id:'armor2',nm:'防弹衣 II',price:200,slot:'armor',armor:.35,icon:'🛡️',
+   tag:'标准防护',tier:'稀有',defense:35,durability:70,
+   ds:'减伤 35% · 中级防御',stats:[['减伤',35],['防御等级','II'],['耐久',70]]},
+  {id:'armor3',nm:'防弹衣 III',price:400,slot:'armor',armor:.5,icon:'🛡️',
+   tag:'顶级防护',tier:'史诗',defense:50,durability:100,
+   ds:'减伤 50% · 高级防御',stats:[['减伤',50],['防御等级','III'],['耐久',100]]},
+  {id:'helmet',nm:'战术头盔',price:120,slot:'helmet',helmet:.1,icon:'🪖',
+   tag:'头部防护',tier:'稀有',defense:10,durability:60,
+   ds:'额外减伤 10% · 保护头部',stats:[['额外减伤',10],['防御等级','II'],['耐久',60]]},
+  {id:'boots',nm:'战术靴',price:120,slot:'boots',speed:1.15,icon:'👟',
+   tag:'机动强化',tier:'普通',mobility:15,durability:55,
+   ds:'移速 +15% · 灵活走位',stats:[['移速',15],['机动等级','II'],['耐久',55]]},
   /* 配件（槽位 accessory） */
-  {id:'mag',nm:'扩容弹匣',ds:'伤害 +10%',price:250,slot:'accessory',dmg:1.1,icon:'📦'},
-  {id:'heavy',nm:'穿甲弹',ds:'伤害 +30%',price:600,slot:'accessory',dmg:1.3,icon:'💥'},
+  {id:'mag',nm:'扩容弹匣',price:100,slot:'accessory',dmg:1.1,icon:'📦',
+   tag:'火力强化',tier:'普通',power:10,durability:40,
+   ds:'伤害 +10% · 火力提升',stats:[['伤害加成',10],['品质','普通'],['耐久',40]]},
+  {id:'heavy',nm:'穿甲弹',price:200,slot:'accessory',dmg:1.3,icon:'💥',
+   tag:'破甲利器',tier:'史诗',power:30,durability:45,
+   ds:'伤害 +30% · 破甲穿透',stats:[['伤害加成',30],['品质','史诗'],['耐久',45]]},
 ];
 const SLOT_OF=it=>it.slot||'accessory';
 function invKey(){return 'dadi_inv_'+(myPid||'guest');}
@@ -719,10 +744,25 @@ function unequipSlot(slot){
 }
 function refreshShop(){
   $('shopCoins').textContent=stats.coins;
+  const tierCol={普通:'#b8c4cc',稀有:'#7fb3e0',史诗:'#d98a3f',传说:'#c77dff'};
   $('shopList').innerHTML=SHOP_ITEMS.map(it=>{
     const owned=hasItem(it.id);
-    return '<div class="shop-item"><div class="info"><div class="nm">'+it.nm+'</div><div class="ds">'+it.ds+'</div></div>'+
-      '<span class="pr">'+it.price+'</span><button '+(owned?'disabled':'')+' onclick="buyItem(\''+it.id+'\')">'+(owned?'已拥有':'购买')+'</button></div>';
+    const tc=tierCol[it.tier]||'#b8c4cc';
+    const statHtml=(it.stats||[]).map(([k,v])=>'<span style="display:inline-block;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:10px;margin:2px 3px 0 0;color:#dfe7f0;">'+k+' <b style="color:'+tc+'">'+v+'</b></span>').join('');
+    return '<div style="border:1px solid '+(owned?'rgba(143,206,122,.35)':'var(--line)')+';border-radius:14px;padding:12px;margin-bottom:10px;background:'+(owned?'rgba(143,206,122,.05)':'rgba(255,255,255,.03)')+';position:relative;">'+
+      '<div style="display:flex;align-items:center;gap:10px;">'+
+        '<div style="width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,'+tc+'33,'+tc+'11);border:1px solid '+tc+'55;display:flex;align-items:center;justify-content:center;font-size:24px;flex:none;">'+it.icon+'</div>'+
+        '<div style="flex:1;min-width:0;">'+
+          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><b style="color:#fff;font-size:14px;">'+it.nm+'</b><span style="font-size:9px;color:'+tc+';border:1px solid '+tc+'66;border-radius:4px;padding:1px 5px;">'+it.tier+'</span><span style="font-size:10px;color:var(--muted);">'+it.tag+'</span></div>'+
+          '<div style="font-size:11px;color:var(--muted);margin-top:3px;">'+it.ds+'</div>'+
+          '<div style="margin-top:4px;display:flex;flex-wrap:wrap;">'+statHtml+'</div>'+
+        '</div>'+
+        '<div style="text-align:right;flex:none;">'+
+          '<div style="color:var(--gold);font-weight:bold;font-size:15px;margin-bottom:4px;">'+it.price+'</div>'+
+          '<button '+(owned?'disabled':'')+' onclick="buyItem(\''+it.id+'\')" style="background:'+(owned?'#555':'var(--gold)')+';color:'+(owned?'#999':'#2a1a0e')+';border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:bold;">'+(owned?'已拥有':'购买')+'</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
   }).join('');
 }
 function refreshInv(){
@@ -769,7 +809,8 @@ function equippedBonuses(){
 let extractProg={}; /* 房主：每玩家已撤离秒数 */
 function freshPlayer(){const s=spawnPos();const b=equippedBonuses();const p={id:'',name:myName,color:myColor,x:s.x,y:s.y,rx:s.x,ry:s.y,
   score:0,hp:MAX_HP,alive:true,weapon:b.weapon,invulnUntil:0,boostUntil:0,ghostUntil:0,extracted:false,
-  fx:0,fy:0,phase:Math.random()*6.28,deadUntil:0,kills:0,armor:b.armor,dmgMul:b.dmgMul,spdMul:b.spdMul,extraArmor:b.extraArmor};
+  fx:0,fy:0,phase:Math.random()*6.28,deadUntil:0,kills:0,armor:b.armor,dmgMul:b.dmgMul,spdMul:b.spdMul,extraArmor:b.extraArmor,
+  revives:REVIVE_MAX};
   return p;
 }
 
@@ -777,7 +818,8 @@ function freshPlayer(){const s=spawnPos();const b=equippedBonuses();const p={id:
 function serializePlayers(){
   return Object.values(players).map(p=>({id:p.id,name:p.name,color:p.color,x:Math.round(p.x),y:Math.round(p.y),
     score:p.score,hp:Math.round(p.hp),alive:p.alive,weapon:p.weapon,invulnUntil:p.invulnUntil,boostUntil:p.boostUntil,
-    ghostUntil:p.ghostUntil,extracted:p.extracted,fx:Math.round(p.fx*100)/100,fy:Math.round(p.fy*100)/100}));
+    ghostUntil:p.ghostUntil,extracted:p.extracted,fx:Math.round(p.fx*100)/100,fy:Math.round(p.fy*100)/100,
+    revives:p.revives}));
 }
 function broadcast(msg){for(const k in peer.connections)peer.connections[k].forEach(c=>{if(c.open)try{c.send(msg);}catch(e){}});}
 function broadcastItems(){broadcast({type:'items',items:items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,weapon:i.weapon||'',value:i.value||0}))});}
@@ -789,7 +831,7 @@ function handleHostMsg(id,msg){
     const p=players[id]={id,name:String(msg.name||'玩家').slice(0,8),
       color:COLORS.includes(msg.color)?msg.color:COLORS[Math.floor(Math.random()*COLORS.length)],
       x:s.x,y:s.y,rx:s.x,ry:s.y,score:0,hp:MAX_HP,alive:true,weapon:'pistol',invulnUntil:0,boostUntil:0,ghostUntil:0,
-      extracted:false,fx:0,fy:0,phase:Math.random()*6.28,deadUntil:0,kills:0,pid:msg.pid||''};
+      extracted:false,fx:0,fy:0,phase:Math.random()*6.28,deadUntil:0,kills:0,pid:msg.pid||'',revives:REVIVE_MAX};
     /* 合并对方战绩进排行榜 */
     if(msg.pid)mergeIntoBoard(msg.pid,p.name,p.color,msg.coins||0,msg.kills||0);
     broadcast({type:'sys',text:p.name+' 加入了游戏'});
@@ -851,7 +893,14 @@ function handleHostMsg(id,msg){
           q.hp-=dmg;
           broadcast({type:'hit',target:q.id,from:p.id,dmg:dmg});
           if(q.hp<=0){
-            q.hp=0;q.alive=false;q.deadUntil=now+5000;
+            q.hp=0;q.alive=false;
+            q.revives=(q.revives||REVIVE_MAX)-1;
+            if(q.revives<=0){ /* 复活次数用尽 → 永久幽灵 */
+              q.ghostUntil=9e15;q.deadUntil=9e15;
+              broadcast({type:'sys',text:q.name+' 复活次数已用完，进入观战模式！'});
+            }else{
+              q.deadUntil=now+5000;
+            }
             p.kills=(p.kills||0)+1;
             /* 掉金币包 */
             const bag={id:items.length,kind:'bag',x:q.x,y:q.y,taken:false,takenAt:0,value:q.score||0};
@@ -896,13 +945,13 @@ function handleHostData(msg){
       if(!players[p.id]){
         players[p.id]={id:p.id,name:p.name,color:p.color,x:p.x,y:p.y,rx:p.x,ry:p.y,score:p.score,hp:p.hp,
           alive:p.alive,weapon:p.weapon,invulnUntil:p.invulnUntil,boostUntil:p.boostUntil,ghostUntil:p.ghostUntil,
-          extracted:p.extracted,fx:p.fx||0,fy:p.fy||0,phase:Math.random()*6.28};
+          extracted:p.extracted,fx:p.fx||0,fy:p.fy||0,phase:Math.random()*6.28,revives:p.revives};
         if(joined){uiLog(p.name+' 加入了游戏');sfx.join();}
       }else{
         const q=players[p.id];
         q.x=p.x;q.y=p.y;q.score=p.score;q.hp=p.hp;q.alive=p.alive;q.extracted=p.extracted;
         q.weapon=p.weapon;q.invulnUntil=p.invulnUntil;q.boostUntil=p.boostUntil;q.ghostUntil=p.ghostUntil;
-        q.fx=p.fx||0;q.fy=p.fy||0;
+        q.fx=p.fx||0;q.fy=p.fy||0;q.revives=p.revives;
       }
       seen[p.id]=1;
     }
@@ -913,7 +962,7 @@ function handleHostData(msg){
       if(p.id===myPeerId)continue;
       players[p.id]={id:p.id,name:p.name,color:p.color,x:p.x,y:p.y,rx:p.x,ry:p.y,score:p.score,hp:p.hp,
         alive:p.alive,weapon:p.weapon,invulnUntil:p.invulnUntil,boostUntil:p.boostUntil,ghostUntil:p.ghostUntil,
-        extracted:p.extracted,fx:p.fx||0,fy:p.fy||0,phase:Math.random()*6.28};
+        extracted:p.extracted,fx:p.fx||0,fy:p.fy||0,phase:Math.random()*6.28,revives:p.revives};
     }
     items=msg.items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,takenAt:0,weapon:i.weapon,value:i.value||0}));
     monsters=msg.monsters.map(m=>({id:m.id,x:m.x,y:m.y,ph:m.ph,cooldown:0}));
@@ -969,7 +1018,7 @@ function handleHostData(msg){
     }else if(players[msg.id]){players[msg.id].alive=true;players[msg.id].x=msg.x;players[msg.id].y=msg.y;players[msg.id].hp=MAX_HP;players[msg.id].score=0;}
   }else if(msg.type==='extractDone'){
     if(msg.id===myPeerId){
-      stats.coins+=msg.coins;stats.extracts++;stats.best=Math.max(stats.best,msg.coins);stats.games++;saveStats();
+      stats.coins+=msg.coins;stats.extracts++;stats.best=Math.max(stats.best,msg.coins);saveStats();
       upselfBoard();
       refreshProfile();
       sfx.extract();
@@ -1306,7 +1355,14 @@ function stepMonsters(dt){
           p.hp-=15;p.invulnUntil=now+2000;m.cooldown=1200;
           broadcast({type:'hit',target:p.id,from:-1,dmg:15});
           if(p.hp<=0){
-            p.hp=0;p.alive=false;p.deadUntil=now+5000;
+            p.hp=0;p.alive=false;
+            p.revives=(p.revives||REVIVE_MAX)-1;
+            if(p.revives<=0){
+              p.ghostUntil=9e15;p.deadUntil=9e15;
+              broadcast({type:'sys',text:p.name+' 被怪物击杀，复活次数已用完，进入观战！'});
+            }else{
+              p.deadUntil=now+5000;
+            }
             const bag={id:items.length,kind:'bag',x:p.x,y:p.y,taken:false,takenAt:0,value:p.score||0};
             items.push(bag);p.score=0;broadcastItems();
             broadcast({type:'died',id:p.id,killer:-1,bag:bag.value});
@@ -1316,9 +1372,9 @@ function stepMonsters(dt){
       }
     }
   }
-  /* 重生 */
+  /* 重生（跳过已撤离 / 永久幽灵玩家） */
   for(const p of Object.values(players)){
-    if(!p.alive&&now>=p.deadUntil){
+    if(!p.alive&&!p.extracted&&p.ghostUntil<9e14&&now>=p.deadUntil){
       const s=spawnPos();p.x=s.x;p.y=s.y;p.hp=MAX_HP;p.alive=true;p.score=0;
       broadcast({type:'respawn',id:p.id,x:Math.round(p.x),y:Math.round(p.y)});
     }
@@ -1403,7 +1459,6 @@ function extractDone(){
   stats.coins+=earn;
   stats.extracts++;
   stats.best=Math.max(stats.best,earn);
-  stats.games++;
   /* 双重写入：当前ID key + 全局备份 key */
   saveStats();
   try{
@@ -1448,9 +1503,7 @@ function onRoundEnd(results){
   const meRes=results.find(r=>r.me);
   const earn=meRes?meRes.coins:0;
   if(meRes&&meRes.extracted){
-    stats.coins+=earn;stats.extracts++;stats.best=Math.max(stats.best,earn);stats.games++;saveStats();
-  } else if(meRes){
-    stats.games++;saveStats();
+    stats.coins+=earn;stats.extracts++;stats.best=Math.max(stats.best,earn);saveStats();
   }
   $('rsTitle').textContent='回合结束';
   $('rsSub').textContent=isHost?'房主可开始新一局':'等待房主开始新一局';
@@ -1634,6 +1687,11 @@ function drawPlayer(p,isMe,ts){
     ctx.font='bold 12px "PingFang SC","Microsoft YaHei",sans-serif';ctx.textAlign='center';
     ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.7)';ctx.strokeText(p.name,x,y-40);
     ctx.fillStyle=invisible?'#c77dff':'#fff';ctx.fillText(p.name+(p.extracted?' ✓':''),x,y-40);
+    /* 剩余复活次数 */
+    if(!p.alive&&p.revives>0){
+      ctx.font='bold 10px "PingFang SC",sans-serif';
+      ctx.fillStyle='#ffd25e';ctx.fillText('复活剩余 '+p.revives, x, y-28);
+    }
   }
   ctx.font='11px "PingFang SC",sans-serif';
   ctx.strokeStyle='rgba(0,0,0,.6)';ctx.strokeText(p.score+' 金',x,y-18);
@@ -1666,36 +1724,64 @@ function drawPlayer(p,isMe,ts){
 /* ============ 武器模型 ============ */
 function drawGun(w,x,y,ang,isMe){
   const a=ang===0&&!isMe?0:ang; /* 玩家朝向 */
-  const len=w==='sniper'?30:(w==='rifle'?24:(w==='shotgun'?27:(w==='smg'?18:14)));
-  const gx=x+Math.cos(a)*(PLAYER_R+2),gy=y+Math.sin(a)*(PLAYER_R+2);
+  const len=w==='sniper'?30:(w==='rifle'?25:(w==='shotgun'?28:(w==='smg'?19:14)));
+  const gx=x+Math.cos(a)*(PLAYER_R+3),gy=y+Math.sin(a)*(PLAYER_R+3);
   ctx.save();
   ctx.translate(gx,gy);
   ctx.rotate(a);
-  ctx.lineWidth=3;ctx.lineCap='round';
-  /* 枪管 */
-  const bodyCol=w==='sniper'?'#7fb069':(w==='rifle'?'#8a9ba8':(w==='shotgun'?'#b0603a':(w==='smg'?'#5d7f5a':'#4a4a52')));
-  ctx.strokeStyle=bodyCol;
+  ctx.lineCap='round';
+  /* 枪管（带渐变高光） */
+  const bodyGrad=ctx.createLinearGradient(0,-3,0,4);
+  if(w==='sniper'){bodyGrad.addColorStop(0,'#9bc08a');bodyGrad.addColorStop(.5,'#5d7f4e');bodyGrad.addColorStop(1,'#3c5531');}
+  else if(w==='rifle'){bodyGrad.addColorStop(0,'#aab7c0');bodyGrad.addColorStop(.5,'#6d7f8c');bodyGrad.addColorStop(1,'#46525c');}
+  else if(w==='shotgun'){bodyGrad.addColorStop(0,'#c97a4a');bodyGrad.addColorStop(.5,'#9c5228');bodyGrad.addColorStop(1,'#6e3414');}
+  else if(w==='smg'){bodyGrad.addColorStop(0,'#7ba877');bodyGrad.addColorStop(.5,'#4d7a49');bodyGrad.addColorStop(1,'#33562f');}
+  else{bodyGrad.addColorStop(0,'#5f6470');bodyGrad.addColorStop(.5,'#3a3e46');bodyGrad.addColorStop(1,'#22252b');}
+  /* 枪管下沿 */
+  ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=3.2;
+  ctx.beginPath();ctx.moveTo(0,1.5);ctx.lineTo(len,1.5);ctx.stroke();
+  /* 枪管主体 */
+  ctx.strokeStyle=bodyGrad;ctx.lineWidth=3;
   ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(len,0);ctx.stroke();
-  /* 枪身/握把 */
-  ctx.strokeStyle='#3a2a20';
-  ctx.lineWidth=2.5;
-  ctx.beginPath();
-  ctx.moveTo(0,0);ctx.lineTo(2,-4);ctx.lineTo(6,-6);
-  ctx.stroke();
+  /* 枪口（金属色） */
+  ctx.strokeStyle='#d8dbe0';ctx.lineWidth=2.6;
+  ctx.beginPath();ctx.moveTo(len-1,0);ctx.lineTo(len+2,0);ctx.stroke();
+  /* 枪身/机匣 */
+  ctx.strokeStyle='#2b2118';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(-1,-1);ctx.lineTo(1,-5);ctx.lineTo(7,-7);ctx.lineTo(9,-4);ctx.stroke();
+  /* 握把 */
+  ctx.strokeStyle='#241a12';ctx.lineWidth=2.6;
+  ctx.beginPath();ctx.moveTo(4,-4);ctx.lineTo(5,4);ctx.stroke();
   /* 瞄准镜（狙/步枪） */
-  if(w==='sniper'||w==='rifle'){
-    ctx.strokeStyle='#202830';ctx.lineWidth=3;
-    ctx.beginPath();ctx.moveTo(len-9,-3);ctx.lineTo(len-2,-3);ctx.stroke();
+  if(w==='sniper'){
+    ctx.strokeStyle='#1a2026';ctx.lineWidth=3.4;
+    ctx.beginPath();ctx.moveTo(len-11,-4);ctx.lineTo(len-3,-4);ctx.stroke();
+    ctx.strokeStyle='#4a5a66';ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(len-11,-4);ctx.lineTo(len-3,-4);ctx.stroke();
+    /* 镜片 */
+    ctx.fillStyle='rgba(140,220,255,.8)';ctx.beginPath();ctx.arc(len-3,-4,1.6,0,6.28);ctx.fill();
+  }else if(w==='rifle'){
+    ctx.strokeStyle='#1a2026';ctx.lineWidth=2.6;
+    ctx.beginPath();ctx.moveTo(len-8,-3);ctx.lineTo(len-2,-3);ctx.stroke();
   }
   /* 弹匣 */
   if(w==='smg'||w==='rifle'){
-    ctx.strokeStyle='#202830';ctx.lineWidth=2;
-    ctx.beginPath();ctx.moveTo(5,0);ctx.lineTo(5,5);ctx.stroke();
+    ctx.strokeStyle='#14191e';ctx.lineWidth=2.2;
+    ctx.beginPath();ctx.moveTo(6,0);ctx.lineTo(6,5);ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=.8;
+    ctx.beginPath();ctx.moveTo(6,1);ctx.lineTo(6,4);ctx.stroke();
   }
-  /* 霰弹枪泵动 */
+  /* 霰弹枪泵动护木 */
   if(w==='shotgun'){
-    ctx.strokeStyle='#6b4a30';ctx.lineWidth=2.5;
-    ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(10,4);ctx.stroke();
+    ctx.strokeStyle='#6b4326';ctx.lineWidth=2.8;
+    ctx.beginPath();ctx.moveTo(9,0);ctx.lineTo(12,4);ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(9,1);ctx.lineTo(11,3);ctx.stroke();
+  }
+  /* 冲锋枪折叠托 */
+  if(w==='smg'){
+    ctx.strokeStyle='#20242a';ctx.lineWidth=1.8;
+    ctx.beginPath();ctx.moveTo(-2,-4);ctx.lineTo(-4,-8);ctx.stroke();
   }
   ctx.restore();
 }
@@ -1796,6 +1882,11 @@ function drawMyself(ts){
   ctx.font='11px "PingFang SC",sans-serif';
   ctx.strokeText(me.score+' 金',x,y-18);
   ctx.fillStyle='#ffd25e';ctx.fillText(me.score+' 金',x,y-18);
+  /* 剩余复活次数 */
+  if(!me.alive&&!me.extracted&&me.revives>0){
+    ctx.font='bold 10px "PingFang SC",sans-serif';
+    ctx.fillStyle='#ffd25e';ctx.fillText('复活剩余 '+me.revives,x,y-28);
+  }
   /* 血条 */
   const bw=34,bh=4;
   ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(x-bw/2,y-34,bw,bh);
@@ -1913,7 +2004,15 @@ function hostApplyShot(p,dx,dy){
         q.hp-=dmg;
         broadcast({type:'hit',target:q.id,from:p.id,dmg:dmg});
         if(q.hp<=0){
-          q.hp=0;q.alive=false;q.deadUntil=now+5000;p.kills=(p.kills||0)+1;
+          q.hp=0;q.alive=false;
+          q.revives=(q.revives||REVIVE_MAX)-1;
+          if(q.revives<=0){
+            q.ghostUntil=9e15;q.deadUntil=9e15;
+            broadcast({type:'sys',text:q.name+' 复活次数已用完，进入观战模式！'});
+          }else{
+            q.deadUntil=now+5000;
+          }
+          p.kills=(p.kills||0)+1;
           const bag={id:items.length,kind:'bag',x:q.x,y:q.y,taken:false,takenAt:0,value:q.score||0};
           items.push(bag);q.score=0;broadcastItems();
           broadcast({type:'sys',text:p.name+' 击杀了 '+q.name+'，金币全部掉落！'});
