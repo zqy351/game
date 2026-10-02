@@ -940,6 +940,8 @@ function handleHostData(msg){
     }
   }else if(msg.type==='roundStart'){
     roundEndAt=msg.endTs;extractProg={};
+    window.__extractedDone=false;
+    if(window.__leaveBtn)window.__leaveBtn.style.display='none';
     if(me){me.score=0;me.hp=MAX_HP;me.alive=true;me.extracted=false;me.weapon='pistol';me.x=msg.meX;me.y=msg.meY;}
     $('result').style.display='none';
     uiLog('新一局开始！15 分钟内撤离');
@@ -959,6 +961,7 @@ function cleanupPeer(){
 }
 function resetToMenu(){
   cleanupPeer();joining=false;
+  window.__extractedDone=false;
   if(window.__leaveBtn)window.__leaveBtn.style.display='none';
   stats=loadStats();
   refreshProfile();
@@ -1271,10 +1274,11 @@ function stepRoundHost(dt){
     if(d<EXTRACT_R){
       extractProg[p.id]=(extractProg[p.id]||0)+dt;
       if(extractProg[p.id]>=EXTRACT_NEED){
-        p.extracted=true;
         extractProg[p.id]=0;
-        broadcast({type:'extractDone',id:p.id,coins:p.score||0});
-        broadcast({type:'sys',text:p.name+' 成功撤离，带走 '+(p.score||0)+' 金币！'});
+        const coins=p.score||0;
+        p.extracted=true;
+        broadcast({type:'extractDone',id:p.id,coins});
+        broadcast({type:'sys',text:p.name+' 成功撤离，带走 '+coins+' 金币！'});
         if(p.id===myPeerId)extractDone();
       }
     }else{
@@ -1298,7 +1302,9 @@ function stepRoundHost(dt){
 /* ============ 结算 ============ */
 function extractDone(){
   if(!me)return;
-  if(me.extracted)return;
+  /* 防重入：不能用 me.extracted 判断，因为 stepRoundHost 会先把它设成 true */
+  if(window.__extractedDone)return;
+  window.__extractedDone=true;
   me.extracted=true;
   me.alive=false;
   me.ghostUntil=9e15; /* 永久幽灵观战 */
@@ -1963,6 +1969,8 @@ $('btnSound').addEventListener('click',function(){
 $('btnLeave').addEventListener('click',()=>{resetToMenu();uiLog('已离开房间');});
 $('btnAgain').addEventListener('click',()=>{
   if(isHost){
+    window.__extractedDone=false;
+    if(window.__leaveBtn)window.__leaveBtn.style.display='none';
     newRound();
     broadcast({type:'roundStart',endTs:roundEndAt,meX:Math.round(me.x),meY:Math.round(me.y)});
     $('result').style.display='none';
