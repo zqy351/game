@@ -213,6 +213,20 @@ input::placeholder{ color:#9a7b5e; }
 .menu-grid button{ padding:10px 0; background:rgba(255,235,205,.07); border:1px solid var(--line);
   color:var(--text); border-radius:10px; font-size:13px; cursor:pointer; }
 .menu-grid button:active{ transform:scale(.98); }
+/* 模式选择卡片 */
+#modeSel .mode-card{ display:flex; gap:12px; align-items:center; padding:14px; border:1px solid var(--line);
+  border-radius:14px; background:rgba(255,235,205,.05); cursor:pointer; transition:transform .12s,border-color .12s; }
+#modeSel .mode-card:active{ transform:scale(.98); }
+#modeSel .mode-card .mc-icon{ width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex:none; }
+#modeSel .mode-card .mc-t{ font-size:15px; color:#fff; font-weight:700; }
+#modeSel .mode-card .mc-d{ font-size:11px; color:var(--muted); margin-top:3px; line-height:1.5; }
+#modeSel .mode-card .mc-tag{ display:inline-block; font-size:9px; border-radius:4px; padding:1px 6px; margin-left:6px; vertical-align:2px; }
+#modeSel .mode-card.mc-n .mc-icon{ background:rgba(140,200,140,.15); border:1px solid rgba(140,200,140,.5); }
+#modeSel .mode-card.mc-n .mc-tag{ color:#9adca0; border:1px solid rgba(140,200,140,.5); }
+#modeSel .mode-card.mc-d .mc-icon{ background:rgba(120,140,220,.15); border:1px solid rgba(120,140,220,.5); }
+#modeSel .mode-card.mc-d .mc-tag{ color:#9fb4ff; border:1px solid rgba(120,140,220,.5); }
+#modeSel .mode-card.mc-x .mc-icon{ background:rgba(190,90,120,.15); border:1px solid rgba(220,110,150,.5); }
+#modeSel .mode-card.mc-x .mc-tag{ color:#ff9fc4; border:1px solid rgba(220,110,150,.5); }
 </style>
 </head>
 <body>
@@ -268,7 +282,7 @@ input::placeholder{ color:#9a7b5e; }
       <circle cx="32" cy="38" r="5" fill="#ffd25e"/>
     </svg>
     <h1>大地图探险</h1>
-    <div class="ver">v3 · 撤离模式</div>
+    <div class="ver">v8.0 · 三模式+保险箱大金</div>
     <p class="sub">收集金币 · 开枪夺宝 · 活到最后并<b>成功撤离</b><br/>被击杀会掉落身上<b>全部金币</b>！</p>
     <input id="nick" maxlength="8" placeholder="你的昵称" />
     <div id="myIdBox" style="text-align:center;font-size:12px;color:var(--muted);margin-bottom:10px">我的 ID：<b id="myId" style="color:var(--gold)"></b></div>
@@ -288,10 +302,27 @@ input::placeholder{ color:#9a7b5e; }
     </div>
     <div id="menuLog"></div>
     <p class="tip">操作：WASD/摇杆移动 · 鼠标/开火键射击 · 走到武器箱换枪。<br/>
-      <b>草丛</b>里蹲下隐蔽 · <b>幽灵瓶</b>隐身 8 秒 · <b>撤离点</b>金光处站 10 秒带走金币。<br/>
+      <b>草丛</b>里蹲下隐蔽 · <b>幽灵瓶</b>隐身 8 秒 · <b>撤离点</b>金光处站 5 秒带走金币。<br/>
       15 分钟内没撤离 = 本局金币全部丢失！</p>
   </div>
 </div>
+
+<!-- ===== 模式选择 ===== -->
+<div id="modeSel" class="overlay">
+  <div class="card">
+    <h2>选择模式</h2>
+    <div id="modeList" style="display:flex;flex-direction:column;gap:10px;"></div>
+    <div class="row" style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn secondary" id="btnCloseMode" style="flex:1">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 保险箱打开按钮 -->
+<button id="safeBtn" style="display:none;position:fixed;left:50%;bottom:34%;transform:translateX(-50%);z-index:32;background:linear-gradient(135deg,#ffd25e,#d98a3f);color:#2a1708;border:2px solid #fff;border-radius:12px;padding:10px 24px;font-size:15px;font-weight:bold;box-shadow:0 2px 14px rgba(0,0,0,.55);">打开保险箱</button>
+
+<!-- 暗夜模式提示 -->
+<div id="nightHint" style="display:none;position:fixed;top:120px;left:50%;transform:translateX(-50%);z-index:33;background:rgba(20,12,8,.85);border:1px solid var(--line);border-radius:10px;padding:6px 14px;font-size:12px;color:#c7c7d0;pointer-events:none;">🌙 暗夜模式：视野受限</div>
 
 <!-- ===== 个人主页 ===== -->
 <div id="profile">
@@ -305,6 +336,7 @@ input::placeholder{ color:#9a7b5e; }
       <div class="stat"><div class="v" id="stKills">0</div><div class="k">总击杀</div></div>
       <div class="stat"><div class="v" id="stBest">0</div><div class="k">最佳单局</div></div>
       <div class="stat"><div class="v" id="stDeaths">0</div><div class="k">总死亡</div></div>
+      <div class="stat"><div class="v" id="stGolds" style="color:#ffd700">0</div><div class="k">收藏大金</div></div>
     </div>
     <div class="row">
       <button class="btn secondary" id="btnCloseProfile">关闭</button>
@@ -389,6 +421,13 @@ const WORLD_W=MAP_W*TILE, WORLD_H=MAP_H*TILE;
 const PLAYER_R=16, SPEED=235, MAX_HP=100;
 const REVIVE_MAX=2; /* 每局每人最多复活 2 次，用尽后永久幽灵 */
 const ROUND_MS=15*60*1000, EXTRACT_NEED=5, EXTRACT_R=300;
+/* ===== 游戏模式 ===== */
+const GAME_MODES=[
+  {id:'normal',nm:'普通模式',icon:'☀️',desc:'标准物资 · 视野正常\n金币、武器箱、稀有物资正常刷新',tag:'标准',cls:'mc-n',itemsMul:1},
+  {id:'night',nm:'暗夜模式',icon:'🌙',desc:'物资更丰富 · 视野受限\n只能看清身边小范围，保险箱仅刷在房区并在小地图标记',tag:'物资×1.4',cls:'mc-d',itemsMul:1.4},
+  {id:'nightmare',nm:'强化暗夜',icon:'🌑',desc:'物资最丰富 · 全图黑暗\n保险箱刷在房区，可开出超稀有【大金】！',tag:'物资×1.8',cls:'mc-x',itemsMul:1.8},
+];
+let gameMode='normal';
 const COLORS=['#ff6b6b','#4dabf7','#3ddc84','#ffc233','#c77dff','#22d3ee','#f783ac','#b8f34a'];
 const CODE_CHARS='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const ICE_CONFIG={
@@ -405,7 +444,8 @@ const GUNS={
   pistol:  {name:'手枪',  dmg:20, range:560, cd:380, speed:950, spread:.03,  pellets:1, color:'#ffd25e'},
   smg:     {name:'冲锋枪',dmg:9,  range:480, cd:110, speed:1050,spread:.06,  pellets:1, color:'#7dd3fc'},
   shotgun: {name:'霰弹枪',dmg:8,  range:310, cd:900, speed:850, spread:.20,  pellets:5, color:'#fb923c'},
-  rifle:   {name:'步枪',  dmg:34, range:850, cd:700, speed:1350,spread:.015, pellets:1, color:'#f87171'}
+  rifle:   {name:'步枪',  dmg:34, range:850, cd:700, speed:1350,spread:.015, pellets:1, color:'#f87171'},
+  sniper:  {name:'狙击枪',dmg:60, range:1200,cd:1800,speed:1600,spread:.008, pellets:1, color:'#f0abfc'}
 };
 
 /* ============ 工具 ============ */
@@ -491,9 +531,11 @@ const EX_X=WORLD_W*0.86, EX_Y=WORLD_H*0.14;
 
 /* ============ 道具 ============ */
 let items=[];
+let safes=[]; /* 保险箱 */
 function placeItems(){
-  items=[];
-  const NUM={coin:200,gem:26,boost:12,ghost:8,diamond:6,crown:2};
+  items=[];safes=[];
+  const mul=GAME_MODES.find(m=>m.id===gameMode)?.itemsMul||1;
+  const NUM={coin:Math.round(200*mul),gem:Math.round(26*mul),boost:12,ghost:8,diamond:Math.round(6*mul),crown:Math.round(2*mul)};
   let guard=0;
   for(const kind of ['coin','gem','boost','ghost','diamond','crown']){
     let n=0;
@@ -695,6 +737,9 @@ const SHOP_ITEMS=[
   {id:'helmet',nm:'战术头盔',price:120,slot:'helmet',helmet:.1,icon:'🪖',
    tag:'头部防护',tier:'稀有',defense:10,durability:60,
    ds:'额外减伤 10% · 保护头部',stats:[['额外减伤',10],['防御等级','II'],['耐久',60]]},
+  {id:'nvg',nm:'夜视仪',price:3000,slot:'helmet',nvg:true,icon:'🔭',
+   tag:'暗夜神器',tier:'史诗',defense:5,durability:80,
+   ds:'暗夜模式看清全场 · 昂贵科技装备',stats:[['夜视',100],['品质','史诗'],['耐久',80]]},
   {id:'boots',nm:'战术靴',price:120,slot:'boots',speed:1.15,icon:'👟',
    tag:'机动强化',tier:'普通',mobility:15,durability:55,
    ds:'移速 +15% · 灵活走位',stats:[['移速',15],['机动等级','II'],['耐久',55]]},
@@ -715,6 +760,8 @@ function loadEquip(){try{return JSON.parse(localStorage.getItem(equipKey())||'{}
 function saveEquip(e){try{localStorage.setItem(equipKey(),JSON.stringify(e));}catch(e){}}
 let myInv=loadInv();
 let myEquip=loadEquip();
+let myLooted=[]; /* 本局捡到的装备（撤离时确认入库） */
+let myGolds=0;   /* 本局获得的大金（撤离时入收藏） */
 function hasItem(id){return myInv.indexOf(id)>=0;}
 function buyItem(id){
   const it=SHOP_ITEMS.find(i=>i.id===id);
@@ -766,8 +813,16 @@ function refreshShop(){
   }).join('');
 }
 function refreshInv(){
+  /* 收藏品：大金 */
+  const gN=parseInt(localStorage.getItem('dadi_golds_'+(myPid||'guest'))||'0')||0;
+  let html='<div style="margin-bottom:10px;background:linear-gradient(135deg,rgba(255,215,0,.12),rgba(212,175,55,.06));border:1px solid rgba(255,215,0,.4);border-radius:10px;padding:10px;">'+
+    '<div style="font-size:12px;color:#ffd700;margin-bottom:4px;">🏆 收藏品</div>'+
+    '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#fff;">'+
+    '<span style="font-size:20px;">🪙</span> 大金 × '+gN+
+    (gN?'<span style="font-size:10px;color:var(--muted);">（撤离成功的战利品）</span>':'<span style="font-size:10px;color:var(--muted);">（强化暗夜保险箱可开出）</span>')+
+    '</div></div>';
   /* 当前装备概览 */
-  let html='<div style="margin-bottom:10px;background:rgba(240,192,104,.08);border:1px solid var(--line);border-radius:10px;padding:10px;">';
+  html+='<div style="margin-bottom:10px;background:rgba(240,192,104,.08);border:1px solid var(--line);border-radius:10px;padding:10px;">';
   html+='<div style="font-size:12px;color:var(--gold);margin-bottom:6px;">当前装备</div>';
   for(const s of SLOTS){
     const eid=myEquip[s.id];
@@ -810,7 +865,7 @@ let extractProg={}; /* 房主：每玩家已撤离秒数 */
 function freshPlayer(){const s=spawnPos();const b=equippedBonuses();const p={id:'',name:myName,color:myColor,x:s.x,y:s.y,rx:s.x,ry:s.y,
   score:0,hp:MAX_HP,alive:true,weapon:b.weapon,invulnUntil:0,boostUntil:0,ghostUntil:0,extracted:false,
   fx:0,fy:0,phase:Math.random()*6.28,deadUntil:0,kills:0,armor:b.armor,dmgMul:b.dmgMul,spdMul:b.spdMul,extraArmor:b.extraArmor,
-  revives:REVIVE_MAX};
+  revives:REVIVE_MAX,bigGold:0,looted:[],equip:Object.assign({},myEquip)};
   return p;
 }
 
@@ -819,10 +874,11 @@ function serializePlayers(){
   return Object.values(players).map(p=>({id:p.id,name:p.name,color:p.color,x:Math.round(p.x),y:Math.round(p.y),
     score:p.score,hp:Math.round(p.hp),alive:p.alive,weapon:p.weapon,invulnUntil:p.invulnUntil,boostUntil:p.boostUntil,
     ghostUntil:p.ghostUntil,extracted:p.extracted,fx:Math.round(p.fx*100)/100,fy:Math.round(p.fy*100)/100,
-    revives:p.revives}));
+    revives:p.revives,bigGold:p.bigGold||0}));
 }
 function broadcast(msg){for(const k in peer.connections)peer.connections[k].forEach(c=>{if(c.open)try{c.send(msg);}catch(e){}});}
-function broadcastItems(){broadcast({type:'items',items:items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,weapon:i.weapon||'',value:i.value||0}))});}
+function broadcastItems(){broadcast({type:'items',items:items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,weapon:i.weapon||'',value:i.value||0,itemId:i.itemId||'',itemName:i.itemName||''}))});}
+function broadcastSafes(){broadcast({type:'safes',safes:safes.map(s=>({id:s.id,x:s.x,y:s.y,opened:s.opened,big:s.big}))});}
 
 function handleHostMsg(id,msg){
   if(!msg||typeof msg!=='object')return;
@@ -831,20 +887,21 @@ function handleHostMsg(id,msg){
     const p=players[id]={id,name:String(msg.name||'玩家').slice(0,8),
       color:COLORS.includes(msg.color)?msg.color:COLORS[Math.floor(Math.random()*COLORS.length)],
       x:s.x,y:s.y,rx:s.x,ry:s.y,score:0,hp:MAX_HP,alive:true,weapon:'pistol',invulnUntil:0,boostUntil:0,ghostUntil:0,
-      extracted:false,fx:0,fy:0,phase:Math.random()*6.28,deadUntil:0,kills:0,pid:msg.pid||'',revives:REVIVE_MAX};
+      extracted:false,fx:0,fy:0,phase:Math.random()*6.28,deadUntil:0,kills:0,pid:msg.pid||'',revives:REVIVE_MAX,
+      bigGold:0,looted:[],equip:msg.equip||{}};
     /* 合并对方战绩进排行榜 */
     if(msg.pid)mergeIntoBoard(msg.pid,p.name,p.color,msg.coins||0,msg.kills||0);
     broadcast({type:'sys',text:p.name+' 加入了游戏'});
     sfx.join();
     /* 立刻给新人完整快照，并通知所有人（修复后加入者看不到） */
     const joinMsg={type:'join',players:serializePlayers(),
-      items:items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,weapon:i.weapon||'',value:i.value||0})),
+      items:items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,weapon:i.weapon||'',value:i.value||0,itemId:i.itemId||'',itemName:i.itemName||''})),
       monsters:monsters.map(m=>({id:m.id,x:m.x,y:m.y,ph:m.ph})),
-      endTs:roundEndAt,exX:EX_X,exY:EX_Y,
+      endTs:roundEndAt,exX:EX_X,exY:EX_Y,mode:gameMode,safes:safes.map(s=>({id:s.id,x:s.x,y:s.y,opened:s.opened,big:s.big})),
       boardMe:{pid:myPid,coins:stats.coins,kills:stats.kills,name:myName,color:myColor}};
     peer.connections[id].forEach(c=>{if(c.open)c.send(joinMsg);});
     /* 立刻把新玩家同步给所有老客户端 */
-    broadcast({type:'state',players:serializePlayers(),endTs:roundEndAt,exProg:extractProg});
+    broadcast({type:'state',players:serializePlayers(),endTs:roundEndAt,exProg:extractProg,mode:gameMode});
   }else if(msg.type==='pos'&&players[id]){
     const p=players[id];p.x=msg.x;p.y=msg.y;
     if(typeof msg.fx==='number')p.fx=msg.fx;
@@ -862,6 +919,11 @@ function handleHostMsg(id,msg){
       else if(it.kind==='ghost')p.ghostUntil=Date.now()+8000;
       else if(it.kind==='crate')p.weapon=it.weapon||'pistol';
       else if(it.kind==='bag')p.score+=it.value||0;
+      else if(it.kind==='gold'){p.bigGold=(p.bigGold||0)+1;toastTop('💰 捡到【大金】！撤离后可收藏进仓库');broadcast({type:'sys',text:p.name+' 捡到了大金！'});}
+      else if(it.kind==='loot'){
+        p.looted=(p.looted||[]);p.looted.push(it.itemId);
+        broadcast({type:'sys',text:p.name+' 捡到了装备：'+it.itemName});
+      }
       broadcastItems();
     }
   }else if(msg.type==='shoot'&&players[id]&&players[id].alive){
@@ -906,6 +968,24 @@ function handleHostMsg(id,msg){
             const bag={id:items.length,kind:'bag',x:q.x,y:q.y,taken:false,takenAt:0,value:q.score||0};
             items.push(bag);
             q.score=0;
+            /* 死亡掉落：大金（必掉） */
+            if(q.bigGold>0){
+              items.push({id:items.length,kind:'gold',x:q.x+10,y:q.y+10,taken:false,takenAt:0,value:0});
+              q.bigGold=0;
+              broadcast({type:'sys',text:q.name+' 的大金掉落了！'});
+            }
+            /* 装备掉落：小概率掉一件装备 */
+            const eqSlots=Object.keys(q.equip||{});
+            if(eqSlots.length&&Math.random()<0.18){
+              const slot=eqSlots[Math.floor(Math.random()*eqSlots.length)];
+              const eid=q.equip[slot];
+              const ei=SHOP_ITEMS.find(x=>x.id===eid);
+              if(ei){
+                items.push({id:items.length,kind:'loot',itemId:eid,itemName:ei.nm,x:q.x-10,y:q.y+10,taken:false,takenAt:0,value:0});
+                delete q.equip[slot];
+                broadcast({type:'sys',text:q.name+' 掉落了装备：'+ei.nm+'！'});
+              }
+            }
             broadcastItems();
             broadcast({type:'sys',text:p.name+' 击杀了 '+q.name+'，金币全部掉落！'});
             broadcast({type:'died',id:q.id,killer:p.id,bag:bag.value});
@@ -918,6 +998,23 @@ function handleHostMsg(id,msg){
     }
   }else if(msg.type==='emote'&&players[id]){
     broadcast({type:'emote',id,phrase:String(msg.phrase||'').slice(0,8)});
+  }else if(msg.type==='openSafe'){
+    /* 客端请求开箱（房主权威判定） */
+    const s=safes.find(x=>x.id===msg.id&&!x.opened);
+    if(!s)return;
+    s.opened=true;
+    broadcastSafes();
+    const p=players[id];
+    if(!p)return;
+    if(s.big){
+      p.bigGold=(p.bigGold||0)+1;
+      broadcast({type:'safeResult',target:id,big:true,coins:0});
+      broadcast({type:'sys',text:p.name+' 从保险箱开出了大金！'});
+    }else{
+      const c=30+Math.floor(Math.random()*40);
+      p.score=(p.score||0)+c;
+      broadcast({type:'safeResult',target:id,big:false,coins:c});
+    }
   }
 }
 function onClientLeft(id){
@@ -934,12 +1031,14 @@ function handleHostData(msg){
   if(!msg||typeof msg!=='object')return;
   if(msg.type==='state'){
     if(typeof msg.endTs==='number')roundEndAt=msg.endTs;
+    if(typeof msg.mode==='string'){gameMode=msg.mode;syncModeUI();}
     if(msg.exProg)extractProg=msg.exProg;
     const seen={};
     for(const p of msg.players){
       if(p.id===myPeerId){
         me.score=p.score;me.hp=p.hp;me.alive=p.alive;me.extracted=p.extracted;
         me.weapon=p.weapon;me.ghostUntil=p.ghostUntil;me.boostUntil=p.boostUntil;me.invulnUntil=p.invulnUntil;
+        me.bigGold=p.bigGold||0;me.revives=p.revives;
         continue;
       }
       if(!players[p.id]){
@@ -964,15 +1063,19 @@ function handleHostData(msg){
         alive:p.alive,weapon:p.weapon,invulnUntil:p.invulnUntil,boostUntil:p.boostUntil,ghostUntil:p.ghostUntil,
         extracted:p.extracted,fx:p.fx||0,fy:p.fy||0,phase:Math.random()*6.28,revives:p.revives};
     }
-    items=msg.items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,takenAt:0,weapon:i.weapon,value:i.value||0}));
+    items=msg.items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,takenAt:0,weapon:i.weapon,value:i.value||0,itemId:i.itemId||'',itemName:i.itemName||''}));
     monsters=msg.monsters.map(m=>({id:m.id,x:m.x,y:m.y,ph:m.ph,cooldown:0}));
+    safes=(msg.safes||[]).map(s=>({id:s.id,x:s.x,y:s.y,opened:s.opened,big:s.big}));
     if(typeof msg.endTs==='number')roundEndAt=msg.endTs;
+    if(msg.mode){gameMode=msg.mode;syncModeUI();}
     if(msg.boardMe)mergeIntoBoard(msg.boardMe.pid,msg.boardMe.name,msg.boardMe.color,msg.boardMe.coins||0,msg.boardMe.kills||0);
     upselfBoard();
     showGame();joined=true;
-    uiLog('已进入房间 '+roomCode+' · 15 分钟内撤离获胜');
+    uiLog('已进入房间 '+roomCode+' · '+(GAME_MODES.find(m=>m.id===gameMode)?.nm||'普通模式'));
   }else if(msg.type==='items'){
-    items=msg.items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,takenAt:0,weapon:i.weapon,value:i.value||0}));
+    items=msg.items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,takenAt:0,weapon:i.weapon,value:i.value||0,itemId:i.itemId||'',itemName:i.itemName||''}));
+  }else if(msg.type==='safes'){
+    safes=msg.safes.map(s=>({id:s.id,x:s.x,y:s.y,opened:s.opened,big:s.big}));
   }else if(msg.type==='monsters'){
     const cur={};for(const m of monsters)cur[m.id]=m;
     const next=[];
@@ -1019,6 +1122,21 @@ function handleHostData(msg){
   }else if(msg.type==='extractDone'){
     if(msg.id===myPeerId){
       stats.coins+=msg.coins;stats.extracts++;stats.best=Math.max(stats.best,msg.coins);saveStats();
+      /* 大金收藏入库 */
+      if(me&&me.bigGold>0){
+        const gKey='dadi_golds_'+(myPid||'guest');
+        try{localStorage.setItem(gKey,String((parseInt(localStorage.getItem(gKey)||'0')||0)+me.bigGold));}catch(e){}
+        me.bigGold=0;
+      }
+      /* 本局捡到的装备确认入库 */
+      if(myLooted&&myLooted.length){
+        for(const lid of myLooted){
+          if(!hasItem(lid)){myInv.push(lid);}
+        }
+        saveInv(myInv);myLooted=[];
+      }
+      /* 撤离成功：固化本局临时穿戴 */
+      try{saveEquip(myEquip);}catch(e){}
       upselfBoard();
       refreshProfile();
       sfx.extract();
@@ -1047,11 +1165,25 @@ function handleHostData(msg){
     }else{
       uiLog((players[msg.id]?players[msg.id].name:'玩家')+' 成功撤离！');
     }
+  }else if(msg.type==='safeResult'){
+    if(msg.target===myPeerId){
+      sfx.gem();
+      if(msg.big){
+        me.bigGold=(me.bigGold||0)+1;
+        toastTop('💰 开出超稀有【大金】！已放入背包');
+        uiLog('保险箱开出了大金！撤离成功后可收藏进仓库');
+      }else{
+        me.score=(me.score||0)+(msg.coins||0);
+        toastTop('保险箱里只有 '+msg.coins+' 金币');
+      }
+    }
   }else if(msg.type==='roundStart'){
     roundEndAt=msg.endTs;extractProg={};
     window.__extractedDone=false;
+    safes=[];
+    if(msg.mode){gameMode=msg.mode;syncModeUI();}
     if(window.__leaveBtn)window.__leaveBtn.style.display='none';
-    if(me){me.score=0;me.hp=MAX_HP;me.alive=true;me.extracted=false;me.weapon='pistol';me.x=msg.meX;me.y=msg.meY;}
+    if(me){me.score=0;me.hp=MAX_HP;me.alive=true;me.extracted=false;me.weapon='pistol';me.x=msg.meX;me.y=msg.meY;me.bigGold=0;}
     $('result').style.display='none';
     uiLog('新一局开始！15 分钟内撤离');
   }else if(msg.type==='roundEnd'){
@@ -1080,6 +1212,11 @@ function resetToMenu(){
   $('sprintBtn').style.display='none';
   $('result').style.display='none';$('extractBar').style.display='none';
   $('joy').style.display='none';$('exArrow').style.display='none';
+  $('safeBtn').style.display='none';$('nightHint').style.display='none';
+  myLooted=[];myGolds=0;
+  if(me){me.bigGold=0;}
+  /* 未撤离离开：还原本局临时穿戴的装备（未撤离的装备不掉落保留） */
+  try{myEquip=loadEquip();}catch(e){}
 }
 function showGame(){
   $('menu').style.display='none';$('hud').style.display='flex';$('hpWrap').style.display='block';
@@ -1088,19 +1225,94 @@ function showGame(){
   $('sprintBtn').style.display=IS_TOUCH?'flex':'none';
   if(IS_TOUCH)$('joy').style.display='block';
   $('roomCodeText').textContent=roomCode;inGame=true;
+  syncModeUI();
 }
+/* ===== 模式相关 UI ===== */
+function isNightMode(){return gameMode==='night'||gameMode==='nightmare';}
+function hasNVG(){return myEquip&&myEquip.helmet==='nvg';}
+function syncModeUI(){
+  const h=$('nightHint');
+  if(h){
+    if(isNightMode()&&inGame){
+      h.style.display='block';
+      h.textContent=hasNVG()?'🔭 夜视仪已启动':(gameMode==='nightmare'?'🌑 强化暗夜：视野受限·保险箱已标记':'🌙 暗夜模式：视野受限');
+    }else{h.style.display='none';}
+  }
+}
+/* 靠近保险箱 → 显示打开按钮 */
+function updateSafeBtn(){
+  const btn=$('safeBtn');
+  if(!inGame||!me||!me.alive){btn.style.display='none';return;}
+  const near=safes.find(s=>!s.opened&&Math.hypot(me.x-s.x,me.y-s.y)<110);
+  btn.style.display=near?'block':'none';
+}
+function openSafe(id){
+  const s=safes.find(x=>x.id===id);
+  if(!s||s.opened)return;
+  s.opened=true;
+  broadcastSafes();
+  sfx.gem();
+  const c=30+Math.floor(Math.random()*40);
+  if(s.big){
+    me.bigGold=(me.bigGold||0)+1;
+    toastTop('💰 开出超稀有【大金】！已放入背包');
+    uiLog('保险箱开出了大金！撤离成功后可收藏进仓库');
+  }else{
+    me.score=(me.score||0)+c;
+    toastTop('保险箱里只有 '+c+' 金币');
+    uiLog('保险箱空荡荡，只有 '+c+' 金币');
+  }
+  updateSafeBtn();
+}
+function toastTop(html){
+  if(!window.__toast){window.__toast=document.createElement('div');
+    window.__toast.style.cssText='position:fixed;top:140px;left:50%;transform:translateX(-50%);z-index:9999;background:linear-gradient(135deg,#f3c27e,#d98a3f);color:#2a1708;padding:14px 28px;border-radius:12px;font-size:15px;font-weight:bold;box-shadow:0 4px 20px rgba(0,0,0,.5);text-align:center;';
+    document.body.appendChild(window.__toast);}
+  window.__toast.innerHTML=html;
+  window.__toast.style.display='block';
+  clearTimeout(window.__toastT);
+  window.__toastT=setTimeout(()=>{window.__toast.style.display='none';},3500);
+}
+$('safeBtn').addEventListener('click',()=>{
+  const near=safes.find(s=>!s.opened&&me&&Math.hypot(me.x-s.x,me.y-s.y)<110);
+  if(!near)return;
+  if(isHost){openSafe(near.id);}
+  else{hostConn.send({type:'openSafe',id:near.id});}
+});
 
 /* ---- 开局/新一局（房主） ---- */
 function newRound(){
   roundEndAt=Date.now()+ROUND_MS;
   roundActive=true;extractProg={};
   for(const p of Object.values(players)){
-    p.score=0;p.hp=MAX_HP;p.alive=true;p.extracted=false;p.weapon='pistol';p.ghostUntil=0;p.boostUntil=0;
+    p.score=0;p.hp=MAX_HP;p.alive=true;p.extracted=false;p.weapon='pistol';p.ghostUntil=0;p.boostUntil=0;p.bigGold=0;
     const s=spawnPos();p.x=s.x;p.y=s.y;
   }
   items=items.filter(i=>i.kind!=='bag');
   for(const it of items){it.taken=false;it.takenAt=0;}
   monsters=[];for(let i=0;i<MONSTER_NUM;i++)monsters.push(spawnMonster());
+  /* 保险箱：仅强化暗夜，每局 1~2 个，刷在房区（biome 3）附近可站立处 */
+  safes=[];
+  if(gameMode==='nightmare'){
+    const n=1+Math.floor(Math.random()*2);
+    let made=0,guard2=0;
+    while(made<n&&guard2<600){
+      guard2++;
+      const tx=2+Math.floor(Math.random()*(MAP_W-4)),ty=2+Math.floor(Math.random()*(MAP_H-4));
+      if(grid[ty][tx]!==3)continue;
+      for(let dy=-2;dy<=2&&made<n;dy++)for(let dx=-2;dx<=2;dx++){
+        const nx=tx+dx,ny=ty+dy;
+        if(nx<1||ny<1||nx>=MAP_W-1||ny>=MAP_H-1)continue;
+        if(isSolid(nx,ny))continue;
+        const x=nx*TILE+TILE/2,y=ny*TILE+TILE/2;
+        if(safes.some(s=>Math.hypot(s.x-x,s.y-y)<TILE*8))continue;
+        safes.push({id:safes.length,x,y,opened:false,big:Math.random()<0.45});
+        made++;
+        break;
+      }
+    }
+  }
+  if(isHost&&safes.length)broadcastSafes();
 }
 
 function createRoom(){
@@ -1108,6 +1320,7 @@ function createRoom(){
   isHost=true;
   myName=$('nick').value.trim()||('玩家'+Math.floor(10+Math.random()*90));
   me=freshPlayer();me.color=myColor;
+  myLooted=[];myGolds=0;
   newRound();
   me.name=myName;
   stats.games++;saveStats();
@@ -1181,7 +1394,7 @@ function doJoin(code){
     hostConn=peer.connect(code,{reliable:false});
     hostConn.on('open',()=>{
       opened=true;clearTimeout(timer);joinRetry=0;hideLoading();roomCode=code;
-      hostConn.send({type:'hello',name:myName,color:myColor,pid:myPid,coins:stats.coins,kills:stats.kills});
+      hostConn.send({type:'hello',name:myName,color:myColor,pid:myPid,coins:stats.coins,kills:stats.kills,equip:Object.assign({},myEquip)});
     });
     hostConn.on('data',d=>handleHostData(d));
     hostConn.on('close',()=>{uiLog('与房主断开连接');resetToMenu();});
@@ -1364,7 +1577,14 @@ function stepMonsters(dt){
               p.deadUntil=now+5000;
             }
             const bag={id:items.length,kind:'bag',x:p.x,y:p.y,taken:false,takenAt:0,value:p.score||0};
-            items.push(bag);p.score=0;broadcastItems();
+            items.push(bag);p.score=0;
+            /* 大金必掉 */
+            if(p.bigGold>0){
+              items.push({id:items.length,kind:'gold',x:p.x+10,y:p.y+10,taken:false,takenAt:0,value:0});
+              p.bigGold=0;
+              broadcast({type:'sys',text:p.name+' 的大金掉落了！'});
+            }
+            broadcastItems();
             broadcast({type:'died',id:p.id,killer:-1,bag:bag.value});
           }
           break;
@@ -1385,7 +1605,7 @@ function tryCollect(p){
   const now=Date.now();
   for(const it of items){
     if(it.taken)continue;
-    const r=it.kind==='bag'?PLAYER_R+22:PLAYER_R+13;
+    const r=it.kind==='bag'?PLAYER_R+22:(it.kind==='gold'?PLAYER_R+20:PLAYER_R+13);
     if(Math.hypot(p.x-it.x,p.y-it.y)<r){
       it.taken=true;it.takenAt=now;
       if(it.kind==='coin')p.score+=1;
@@ -1396,15 +1616,33 @@ function tryCollect(p){
       else if(it.kind==='ghost')p.ghostUntil=now+8000;
       else if(it.kind==='crate')p.weapon=it.weapon||'pistol';
       else if(it.kind==='bag')p.score+=it.value||0;
-      burst(it.x,it.y,it.kind==='gem'?'#59d0ff':(it.kind==='crown'?'#ffd700':(it.kind==='diamond'?'#a8e6ff':(it.kind==='boost'?'#ffd25e':(it.kind==='ghost'?'#c77dff':'#f0c068')))),it.kind==='coin'?10:18,90);
+      else if(it.kind==='gold'){
+        p.bigGold=(p.bigGold||0)+1;
+        toastTop('💰 捡到【大金】！撤离后可收藏进仓库');
+        uiLog('大金已放入背包，撤离时记得带走！');
+      }else if(it.kind==='loot'){
+        if(!myLooted)myLooted=[];
+        myLooted.push(it.itemId);
+        const li=SHOP_ITEMS.find(x=>x.id===it.itemId);
+        if(li){
+          /* 本局内临时穿戴（撤离成功才真正保存入仓库） */
+          myEquip[SLOT_OF(li)]=it.itemId;
+          toastTop('🎒 捡到装备：'+li.nm+'，已自动穿戴');
+          uiLog('装备 '+li.nm+' 已穿戴，撤离成功后可收入仓库');
+        }
+      }
+      burst(it.x,it.y,it.kind==='gem'?'#59d0ff':(it.kind==='crown'?'#ffd700':(it.kind==='diamond'?'#a8e6ff':(it.kind==='boost'?'#ffd25e':(it.kind==='ghost'?'#c77dff':(it.kind==='gold'?'#ffd700':(it.kind==='loot'?'#7ddfa0':'#f0c068')))))),it.kind==='coin'?10:18,90);
       if(it.kind==='coin'||it.kind==='gem'||it.kind==='diamond'||it.kind==='crown'||it.kind==='bag'){
         const v=it.kind==='coin'?1:it.kind==='gem'?5:it.kind==='diamond'?20:it.kind==='crown'?50:(it.value||0);
         floaters.push({x:it.x,y:it.y,text:'+'+v,life:1,color:v>=20?'#ffd700':'#fff'});
+      }else if(it.kind==='gold'){
+        floaters.push({x:it.x,y:it.y,text:'大金!',life:1,color:'#ffd700'});
       }
       if(it.kind==='coin')sfx.coin();
       else if(it.kind==='gem'||it.kind==='diamond'||it.kind==='crown')sfx.gem();
       else if(it.kind==='boost')sfx.boost();
       else if(it.kind==='ghost')sfx.ghost();
+      else if(it.kind==='gold'||it.kind==='loot')sfx.gem();
       return it.id;
     }
   }
@@ -1459,6 +1697,21 @@ function extractDone(){
   stats.coins+=earn;
   stats.extracts++;
   stats.best=Math.max(stats.best,earn);
+  /* 大金收藏入库 */
+  if(me.bigGold>0){
+    const gKey='dadi_golds_'+(myPid||'guest');
+    try{localStorage.setItem(gKey,String((parseInt(localStorage.getItem(gKey)||'0')||0)+me.bigGold));}catch(e){}
+    me.bigGold=0;
+  }
+  /* 本局捡到的装备确认入库 */
+  if(myLooted&&myLooted.length){
+    for(const lid of myLooted){
+      if(!hasItem(lid)){myInv.push(lid);}
+    }
+    saveInv(myInv);myLooted=[];
+  }
+  /* 撤离成功：固化本局临时穿戴 */
+  try{saveEquip(myEquip);}catch(e){}
   /* 双重写入：当前ID key + 全局备份 key */
   saveStats();
   try{
@@ -1643,7 +1896,44 @@ function drawItem(it,ts){
     ctx.moveTo(x-12,y+6);ctx.lineTo(x-12,y-8);ctx.lineTo(x-6,y-2);ctx.lineTo(x,y-10);ctx.lineTo(x+6,y-2);ctx.lineTo(x+12,y-8);ctx.lineTo(x+12,y+6);
     ctx.closePath();ctx.fillStyle='#ffd700';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#b8860b';ctx.stroke();
     ctx.fillStyle='#ff5b7a';ctx.beginPath();ctx.arc(x,y-2,2.5,0,6.28);ctx.fill();
+  }else if(it.kind==='gold'){
+    /* 大金（超稀有收藏品） */
+    const pu=1+Math.sin(ts/220)*.15;
+    ctx.fillStyle='rgba(255,200,60,.5)';ctx.beginPath();ctx.arc(x,y,20*pu,0,6.28);ctx.fill();
+    ctx.fillStyle='#d4af37';ctx.fillRect(x-10,y-12,20,24);
+    ctx.strokeStyle='#8a6d1a';ctx.lineWidth=2.2;ctx.strokeRect(x-10,y-12,20,24);
+    ctx.fillStyle='#ffe082';ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText('大金',x,y+4);
+    /* 高光 */
+    ctx.fillStyle='rgba(255,255,255,.4)';ctx.fillRect(x-7,y-9,4,18);
+  }else if(it.kind==='loot'){
+    /* 掉落装备盒 */
+    const pu=1+Math.sin(ts/260)*.1;
+    ctx.fillStyle='rgba(120,220,160,.4)';ctx.beginPath();ctx.arc(x,y,17*pu,0,6.28);ctx.fill();
+    ctx.fillStyle='#3d8f5f';ctx.fillRect(x-11,y-10,22,20);
+    ctx.strokeStyle='#1f5c3c';ctx.lineWidth=2;ctx.strokeRect(x-11,y-10,22,20);
+    const lw=(it.itemName||'装备');
+    ctx.fillStyle='#d9ffe9';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.fillText(lw.slice(0,4),x,y+4);
   }
+}
+/* ===== 保险箱（强化暗夜） ===== */
+function drawSafe(s,ts){
+  const bob=Math.sin(ts/300+s.id)*2,x=s.x,y=s.y+bob;
+  /* 光晕 */
+  ctx.fillStyle='rgba(255,190,80,.18)';ctx.beginPath();ctx.arc(x,y,34+Math.sin(ts/220)*3,0,6.28);ctx.fill();
+  /* 箱体 */
+  ctx.fillStyle='#4a3728';ctx.fillRect(x-16,y-15,32,30);
+  ctx.strokeStyle='#2b1f14';ctx.lineWidth=2.4;ctx.strokeRect(x-16,y-15,32,30);
+  /* 金色锁/把手 */
+  ctx.fillStyle='#d4af37';ctx.beginPath();ctx.arc(x,y-2,5.5,0,6.28);ctx.fill();
+  ctx.strokeStyle='#8a6d1a';ctx.lineWidth=1.6;ctx.stroke();
+  ctx.fillStyle='#2b1f14';ctx.fillRect(x-1.5,y-5,3,10);
+  /* 顶部警示光 */
+  ctx.fillStyle='rgba(255,60,60,'+(0.6+Math.sin(ts/150)*.3)+')';
+  ctx.beginPath();ctx.arc(x,y-22,3,0,6.28);ctx.fill();
+  /* 标签 */
+  ctx.font='bold 10px sans-serif';ctx.textAlign='center';
+  ctx.strokeStyle='rgba(0,0,0,.8)';ctx.lineWidth=3;ctx.strokeText('保险箱',x,y-30);
+  ctx.fillStyle='#ffd25e';ctx.fillText('保险箱',x,y-30);
 }
 
 function drawMonster(m,ts){
@@ -1819,6 +2109,12 @@ function drawScene(ts){
       drawTile(tx,ty);
 
   drawExtraction(ts);
+  /* 保险箱（强化暗夜） */
+  for(const s of safes){
+    if(s.opened)continue;
+    if(s.x<camX-60||s.x>camX+W+60||s.y<camY-60||s.y>camY+H+60)continue;
+    drawSafe(s,ts);
+  }
   for(const it of items){
     if(it.taken)continue;
     if(it.x<camX-40||it.x>camX+W+40||it.y<camY-40||it.y>camY+H+40)continue;
@@ -1847,6 +2143,30 @@ function drawScene(ts){
   ctx.restore();
   /* 自己画在屏幕正中心（撤离后画半透明幽灵） */
   if(me)drawMyself(ts);
+  /* ===== 暗夜/强化暗夜视野 ===== */
+  if(isNightMode()&&me){
+    if(hasNVG()){
+      /* 夜视仪：绿色滤镜 + 微弱视野扩展 */
+      ctx.fillStyle='rgba(90,220,120,.10)';
+      ctx.fillRect(0,0,W,H);
+      const vg=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*.55);
+      vg.addColorStop(0,'rgba(90,220,120,0)');
+      vg.addColorStop(.75,'rgba(90,220,120,.02)');
+      vg.addColorStop(1,'rgba(0,30,10,.55)');
+      ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+    }else{
+      /* 无夜视仪：只能看清身边小圈 */
+      const vR=Math.min(W,H)*.32;
+      const vg=ctx.createRadialGradient(W/2,H/2,vR*.35,W/2,H/2,vR);
+      vg.addColorStop(0,'rgba(2,6,14,0)');
+      vg.addColorStop(.62,'rgba(2,6,14,0)');
+      vg.addColorStop(1,'rgba(1,3,9,.97)');
+      ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+      /* 视野边缘微光 */
+      ctx.strokeStyle='rgba(120,150,220,.25)';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(W/2,H/2,vR,0,6.28);ctx.stroke();
+    }
+  }
   /* 撤离后顶部提示 */
   if(me&&me.extracted){
     ctx.fillStyle='rgba(255,210,94,.9)';
@@ -1913,6 +2233,15 @@ function drawMinimap(){
     if(it.kind==='diamond'){ctx.fillStyle='#a8e6ff';ctx.fillRect(x+it.x*k-1.5,y+it.y*k-1.5,3,3);}
     else if(it.kind==='crown'){ctx.fillStyle='#ffd700';ctx.beginPath();ctx.arc(x+it.x*k,y+it.y*k,2.5,0,6.28);ctx.fill();}
     else if(it.kind==='bag'){ctx.fillStyle='#f0c068';ctx.beginPath();ctx.arc(x+it.x*k,y+it.y*k,2,0,6.28);ctx.fill();}
+  }
+  /* 保险箱标记（金色闪烁） */
+  for(const s of safes){
+    if(s.opened)continue;
+    const pu=2.5+Math.sin(performance.now()/250+s.id)*1.2;
+    ctx.fillStyle='#ffd700';
+    ctx.fillRect(x+s.x*k-3,y+s.y*k-3,6,6);
+    ctx.strokeStyle='rgba(255,215,0,.7)';ctx.lineWidth=1;
+    ctx.strokeRect(x+s.x*k-4-pu,y+s.y*k-4-pu,8+pu*2,8+pu*2);
   }
   /* 撤离点（脉冲圈） */
   const pr=4+Math.sin(performance.now()/300)*1.5;
@@ -2014,7 +2343,26 @@ function hostApplyShot(p,dx,dy){
           }
           p.kills=(p.kills||0)+1;
           const bag={id:items.length,kind:'bag',x:q.x,y:q.y,taken:false,takenAt:0,value:q.score||0};
-          items.push(bag);q.score=0;broadcastItems();
+          items.push(bag);q.score=0;
+          /* 死亡掉落：大金（必掉） */
+          if(q.bigGold>0){
+            items.push({id:items.length,kind:'gold',x:q.x+10,y:q.y+10,taken:false,takenAt:0,value:0});
+            q.bigGold=0;
+            broadcast({type:'sys',text:q.name+' 的大金掉落了！'});
+          }
+          /* 装备掉落：小概率掉一件装备 */
+          const eqSlots2=Object.keys(q.equip||{});
+          if(eqSlots2.length&&Math.random()<0.18){
+            const slot=eqSlots2[Math.floor(Math.random()*eqSlots2.length)];
+            const eid=q.equip[slot];
+            const ei=SHOP_ITEMS.find(x=>x.id===eid);
+            if(ei){
+              items.push({id:items.length,kind:'loot',itemId:eid,itemName:ei.nm,x:q.x-10,y:q.y+10,taken:false,takenAt:0,value:0});
+              delete q.equip[slot];
+              broadcast({type:'sys',text:q.name+' 掉落了装备：'+ei.nm+'！'});
+            }
+          }
+          broadcastItems();
           broadcast({type:'sys',text:p.name+' 击杀了 '+q.name+'，金币全部掉落！'});
           broadcast({type:'died',id:q.id,killer:p.id,bag:bag.value});
           burst(q.x,q.y,'#ffd25e',22,140);
@@ -2102,6 +2450,7 @@ function loop(ts){
       ex.style.transform=`translate(-50%,-50%) rotate(${ang*180/Math.PI+90}deg)`;
       ex.textContent='⬇\n'+dist+'m';
     }else{$('exArrow').style.display='none';}
+    updateSafeBtn();
   }
   if(ts-lastBoard>400&&inGame){
     lastBoard=ts;
@@ -2111,14 +2460,15 @@ function loop(ts){
     $('board').innerHTML='<div class="ttl">本局金币榜</div>'+list.map(p=>
       '<div class="row'+(p.id===myPeerId?' me':'')+'"><span class="dot" style="background:'+p.color+'"></span>'+
       '<span class="nm">'+escapeHtml(p.name)+(p.extracted?'<span class="ex"> 撤</span>':'')+'</span>'+
-      '<span class="sc">'+p.score+'</span></div>').join('');
+      (p.bigGold>0?'<span class="sc" style="color:#ffd700">🪙'+p.bigGold+'</span>':'<span class="sc">'+p.score+'</span>')+
+      '</div>').join('');
   }
 }
 
 /* 房主状态广播（12.5Hz，权威数据实时同步） */
 setInterval(()=>{
   if(isHost&&peer&&peer.open&&me){
-    if(Object.keys(peer.connections).length>0)broadcast({type:'state',players:serializePlayers(),endTs:roundEndAt,exProg:extractProg});
+    if(Object.keys(peer.connections).length>0)broadcast({type:'state',players:serializePlayers(),endTs:roundEndAt,exProg:extractProg,mode:gameMode});
     if(monsters.length)broadcast({type:'monsters',monsters:monsters.map(m=>({id:m.id,x:Math.round(m.x),y:Math.round(m.y),ph:m.ph}))});
   }
 },80);
@@ -2173,10 +2523,25 @@ function refreshProfile(){
   $('stKills').textContent=stats.kills;
   $('stBest').textContent=stats.best;
   $('stDeaths').textContent=stats.deaths;
+  const gN=parseInt(localStorage.getItem('dadi_golds_'+(myPid||'guest'))||'0')||0;
+  $('stGolds').textContent=gN;
 }
 
 $('nick').value='玩家'+Math.floor(10+Math.random()*90);
-$('btnCreate').addEventListener('click',createRoom);
+/* ===== 模式选择 ===== */
+function renderModeSel(){
+  $('modeList').innerHTML=GAME_MODES.map(m=>
+    '<div class="mode-card '+m.cls+'" data-mode="'+m.id+'">'+
+      '<div class="mc-icon">'+m.icon+'</div>'+
+      '<div style="flex:1"><div class="mc-t">'+m.nm+'<span class="mc-tag">'+m.tag+'</span></div>'+
+      '<div class="mc-d">'+m.desc.split('\n').join('<br/>')+'</div></div>'+
+    '</div>').join('');
+  document.querySelectorAll('#modeSel .mode-card').forEach(c=>{
+    c.onclick=()=>{gameMode=c.dataset.mode;$('modeSel').style.display='none';createRoom();};
+  });
+}
+$('btnCreate').addEventListener('click',()=>{renderModeSel();$('modeSel').style.display='flex';});
+$('btnCloseMode').addEventListener('click',()=>{$('modeSel').style.display='none';});
 $('btnJoin').addEventListener('click',()=>{
   const input=$('roomCode');
   input.style.display='block';
@@ -2215,7 +2580,7 @@ $('btnAgain').addEventListener('click',()=>{
     window.__extractedDone=false;
     if(window.__leaveBtn)window.__leaveBtn.style.display='none';
     newRound();
-    broadcast({type:'roundStart',endTs:roundEndAt,meX:Math.round(me.x),meY:Math.round(me.y)});
+    broadcast({type:'roundStart',endTs:roundEndAt,meX:Math.round(me.x),meY:Math.round(me.y),mode:gameMode});
     $('result').style.display='none';
     uiLog('新一局开始！');
   }
@@ -2270,7 +2635,7 @@ function persistAccount(){
 function logout(){
   persistAccount();
   cleanupPeer();joining=false;inGame=false;
-  myPid='';myName='';myInv=[];myEquip={};
+  myPid='';myName='';myInv=[];myEquip={};myLooted=[];myGolds=0;
   stats={coins:0,games:0,extracts:0,kills:0,best:0,deaths:0};
   saveSession('');
   $('menu').style.display='none';
