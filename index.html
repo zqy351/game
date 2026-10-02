@@ -423,9 +423,9 @@ const REVIVE_MAX=2; /* 每局每人最多复活 2 次，用尽后永久幽灵 */
 const ROUND_MS=15*60*1000, EXTRACT_NEED=5, EXTRACT_R=300;
 /* ===== 游戏模式 ===== */
 const GAME_MODES=[
-  {id:'normal',nm:'普通模式',icon:'☀️',desc:'标准物资 · 视野正常\n金币、武器箱、稀有物资正常刷新',tag:'标准',cls:'mc-n',itemsMul:1},
-  {id:'night',nm:'暗夜模式',icon:'🌙',desc:'物资更丰富 · 视野受限\n只能看清身边小范围，保险箱仅刷在房区并在小地图标记',tag:'物资×1.4',cls:'mc-d',itemsMul:1.4},
-  {id:'nightmare',nm:'强化暗夜',icon:'🌑',desc:'物资最丰富 · 全图黑暗\n保险箱刷在房区，可开出超稀有【大金】！',tag:'物资×1.8',cls:'mc-x',itemsMul:1.8},
+  {id:'normal',nm:'普通模式',icon:'☀️',desc:'标准物资 · 视野正常\n金币、武器箱、稀有物资正常刷新',tag:'标准',cls:'mc-n',itemsMul:1,monsterNum:9},
+  {id:'night',nm:'暗夜模式',icon:'🌙',desc:'物资更丰富 · 视野受限\n只能看清身边小范围，保险箱仅刷在房区并在小地图标记',tag:'物资×1.4',cls:'mc-d',itemsMul:1.4,monsterNum:14},
+  {id:'nightmare',nm:'强化暗夜',icon:'🌑',desc:'物资最丰富 · 全图黑暗\n保险箱刷在房区，可开出超稀有【大金】！',tag:'物资×1.8',cls:'mc-x',itemsMul:1.8,monsterNum:20},
 ];
 let gameMode='normal';
 const COLORS=['#ff6b6b','#4dabf7','#3ddc84','#ffc233','#c77dff','#22d3ee','#f783ac','#b8f34a'];
@@ -578,15 +578,15 @@ function placeItems(){
 placeItems();
 
 /* ============ 史莱姆 ============ */
-const MONSTER_NUM=9, MONSTER_SPEED=98, MONSTER_R=15, CHASE_R=290;
+const MONSTER_NUM=9, MONSTER_SPEED=98, MONSTER_R=15, CHASE_R=290, MONSTER_HP=40, MONSTER_REWARD=5;
 let monsters=[];
 function spawnMonster(){
   for(let i=0;i<900;i++){
     const tx=2+Math.floor(Math.random()*(MAP_W-4)),ty=2+Math.floor(Math.random()*(MAP_H-4));
     if(isSolid(tx,ty))continue;
-    return {id:monsters.length,x:tx*TILE+TILE/2,y:ty*TILE+TILE/2,vx:0,vy:0,ph:Math.random()*6.28,cooldown:0};
+    return {id:monsters.length,x:tx*TILE+TILE/2,y:ty*TILE+TILE/2,vx:0,vy:0,ph:Math.random()*6.28,cooldown:0,hp:MONSTER_HP};
   }
-  return {id:monsters.length,x:WORLD_W/2,y:WORLD_H/2,vx:0,vy:0,ph:0,cooldown:0};
+  return {id:monsters.length,x:WORLD_W/2,y:WORLD_H/2,vx:0,vy:0,ph:0,cooldown:0,hp:MONSTER_HP};
 }
 
 /* ============ 粒子（上限控制） ============ */
@@ -876,7 +876,7 @@ function serializePlayers(){
     ghostUntil:p.ghostUntil,extracted:p.extracted,fx:Math.round(p.fx*100)/100,fy:Math.round(p.fy*100)/100,
     revives:p.revives,bigGold:p.bigGold||0}));
 }
-function broadcast(msg){for(const k in peer.connections)peer.connections[k].forEach(c=>{if(c.open)try{c.send(msg);}catch(e){}});}
+function broadcast(msg){if(!peer)return;for(const k in peer.connections)peer.connections[k].forEach(c=>{if(c.open)try{c.send(msg);}catch(e){}});}
 function broadcastItems(){broadcast({type:'items',items:items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,weapon:i.weapon||'',value:i.value||0,itemId:i.itemId||'',itemName:i.itemName||''}))});}
 function broadcastSafes(){broadcast({type:'safes',safes:safes.map(s=>({id:s.id,x:s.x,y:s.y,opened:s.opened,big:s.big}))});}
 
@@ -896,7 +896,7 @@ function handleHostMsg(id,msg){
     /* 立刻给新人完整快照，并通知所有人（修复后加入者看不到） */
     const joinMsg={type:'join',players:serializePlayers(),
       items:items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,weapon:i.weapon||'',value:i.value||0,itemId:i.itemId||'',itemName:i.itemName||''})),
-      monsters:monsters.map(m=>({id:m.id,x:m.x,y:m.y,ph:m.ph})),
+      monsters:monsters.map(m=>({id:m.id,x:m.x,y:m.y,ph:m.ph,hp:m.hp||MONSTER_HP})),
       endTs:roundEndAt,exX:EX_X,exY:EX_Y,mode:gameMode,safes:safes.map(s=>({id:s.id,x:s.x,y:s.y,opened:s.opened,big:s.big})),
       boardMe:{pid:myPid,coins:stats.coins,kills:stats.kills,name:myName,color:myColor}};
     peer.connections[id].forEach(c=>{if(c.open)c.send(joinMsg);});
@@ -937,6 +937,7 @@ function handleHostMsg(id,msg){
     for(let pellet=0;pellet<g.pellets;pellet++){
       const pa=ang+(Math.random()-.5)*2*g.spread;
       const px=Math.cos(pa),py=Math.sin(pa);
+      if(applyShotToMonsters(p,px,py))continue;
       for(const q of Object.values(players)){
         if(q.id===p.id||!q.alive)continue;
         const dxq=q.x-p.x,dyq=q.y-p.y;
@@ -1064,7 +1065,7 @@ function handleHostData(msg){
         extracted:p.extracted,fx:p.fx||0,fy:p.fy||0,phase:Math.random()*6.28,revives:p.revives};
     }
     items=msg.items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,takenAt:0,weapon:i.weapon,value:i.value||0,itemId:i.itemId||'',itemName:i.itemName||''}));
-    monsters=msg.monsters.map(m=>({id:m.id,x:m.x,y:m.y,ph:m.ph,cooldown:0}));
+    monsters=msg.monsters.map(m=>({id:m.id,x:m.x,y:m.y,ph:m.ph,cooldown:0,hp:m.hp||MONSTER_HP}));
     safes=(msg.safes||[]).map(s=>({id:s.id,x:s.x,y:s.y,opened:s.opened,big:s.big}));
     if(typeof msg.endTs==='number')roundEndAt=msg.endTs;
     if(msg.mode){gameMode=msg.mode;syncModeUI();}
@@ -1105,6 +1106,16 @@ function handleHostData(msg){
       floaters.push({x:players[msg.target].x,y:players[msg.target].y-20,text:'-'+msg.dmg,life:1,color:'#ff6b6b'});
     }
     if(msg.from===myPeerId){stats.kills++;saveStats();}
+  }else if(msg.type==='monsterHit'){
+    const mm=monsters.find(x=>x.id===msg.id);
+    if(mm){burst(mm.x,mm.y,'#ff6b6b',6,90);floaters.push({x:mm.x,y:mm.y-16,text:'-'+msg.dmg,life:1,color:'#ff6b6b'});}
+  }else if(msg.type==='monsterDead'){
+    const mm=monsters.find(x=>x.id===msg.id);
+    if(mm){
+      if(msg.x!==undefined){mm.x=msg.x;mm.y=msg.y;mm.hp=msg.hp||MONSTER_HP;}
+      burst(mm.x,mm.y,'#ffd25e',14,120);
+      if(msg.reward&&msg.killer===myPeerId)floaters.push({x:mm.x,y:mm.y-24,text:'+'+msg.reward,life:1,color:'#ffd700'});
+    }
   }else if(msg.type==='died'){
     if(msg.id===myPeerId){
       stats.deaths++;saveStats();
@@ -1290,7 +1301,7 @@ function newRound(){
   }
   items=items.filter(i=>i.kind!=='bag');
   for(const it of items){it.taken=false;it.takenAt=0;}
-  monsters=[];for(let i=0;i<MONSTER_NUM;i++)monsters.push(spawnMonster());
+  const mNum=(GAME_MODES.find(m=>m.id===gameMode)||{}).monsterNum||MONSTER_NUM;monsters=[];for(let i=0;i<mNum;i++)monsters.push(spawnMonster());
   /* 保险箱：仅强化暗夜，每局 1~2 个，刷在房区（biome 3）附近可站立处 */
   safes=[];
   if(gameMode==='nightmare'){
@@ -1945,6 +1956,12 @@ function drawMonster(m,ts){
   ctx.lineWidth=2;ctx.strokeStyle='#1f7a3d';ctx.stroke();
   ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(m.x-6,m.y-3,4,0,6.28);ctx.arc(m.x+6,m.y-3,4,0,6.28);ctx.fill();
   ctx.fillStyle='#1f2a35';ctx.beginPath();ctx.arc(m.x-6,m.y-2,2,0,6.28);ctx.arc(m.x+6,m.y-2,2,0,6.28);ctx.fill();
+  /* 血条 */
+  const hp=Math.max(0,(m.hp!==undefined?m.hp:MONSTER_HP));
+  const bw=30,bh=3;
+  ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(m.x-bw/2,m.y-MONSTER_R-13,bw,bh);
+  ctx.fillStyle=hp>50?'#8fce7a':(hp>25?'#e8b93a':'#e06a5a');
+  ctx.fillRect(m.x-bw/2,m.y-MONSTER_R-13,bw*hp/MONSTER_HP,bh);
 }
 
 function drawPlayer(p,isMe,ts){
@@ -2311,6 +2328,33 @@ function tryFire(){
     hostConn.send({type:'shoot',dx:a.dx,dy:a.dy});
   }
 }
+/* 枪械对怪物的命中判定（房主权威）：射线命中最近怪物，扣血、击杀加分并重生 */
+function applyShotToMonsters(p,dx,dy){
+  const g=GUNS[p.weapon]||GUNS.pistol;
+  const hitR=MONSTER_R+7;
+  let best=null,bestT=Infinity;
+  for(const m of monsters){
+    const vx=m.x-p.x,vy=m.y-p.y;
+    const t=vx*dx+vy*dy;
+    if(t<=0||t>g.range)continue;
+    const perp2=vx*vx+vy*vy-t*t;
+    if(perp2>hitR*hitR)continue;
+    if(t<bestT){bestT=t;best=m;}
+  }
+  if(!best)return false;
+  const dmg=Math.round(g.dmg*(p.dmgMul||1));
+  best.hp=(best.hp||MONSTER_HP)-dmg;
+  broadcast({type:'monsterHit',id:best.id,dmg});
+  if(best.hp<=0){
+    const s=spawnMonster();
+    Object.assign(best,{x:s.x,y:s.y,vx:0,vy:0,ph:Math.random()*6.28,cooldown:0,hp:MONSTER_HP});
+    p.score=(p.score||0)+MONSTER_REWARD;
+    broadcast({type:'monsterDead',id:best.id,killer:p.id,reward:MONSTER_REWARD,x:Math.round(best.x),y:Math.round(best.y),hp:MONSTER_HP});
+    broadcast({type:'sys',text:p.name+' 击杀了一只史莱姆，+'+MONSTER_REWARD+' 金'});
+  }
+  return true;
+}
+
 /* 房主对自己开火的命中（与 handleHostMsg.shoot 相同逻辑，抽出） */
 function hostApplyShot(p,dx,dy){
   const g=GUNS[p.weapon]||GUNS.pistol;
@@ -2319,6 +2363,7 @@ function hostApplyShot(p,dx,dy){
   for(let pellet=0;pellet<g.pellets;pellet++){
     const pa=ang+(Math.random()-.5)*2*g.spread;
     const px=Math.cos(pa),py=Math.sin(pa);
+    if(applyShotToMonsters(p,px,py))continue;
     for(const q of Object.values(players)){
       if(q.id===p.id||!q.alive)continue;
       const dxq=q.x-p.x,dyq=q.y-p.y,dist=Math.hypot(dxq,dyq);
@@ -2469,7 +2514,7 @@ function loop(ts){
 setInterval(()=>{
   if(isHost&&peer&&peer.open&&me){
     if(Object.keys(peer.connections).length>0)broadcast({type:'state',players:serializePlayers(),endTs:roundEndAt,exProg:extractProg,mode:gameMode});
-    if(monsters.length)broadcast({type:'monsters',monsters:monsters.map(m=>({id:m.id,x:Math.round(m.x),y:Math.round(m.y),ph:m.ph}))});
+    if(monsters.length)broadcast({type:'monsters',monsters:monsters.map(m=>({id:m.id,x:Math.round(m.x),y:Math.round(m.y),ph:m.ph,hp:Math.round(m.hp||MONSTER_HP)}))});
   }
 },80);
 /* 道具重生 */
