@@ -219,15 +219,17 @@ input::placeholder{ color:#9a7b5e; }
 <!-- 加载动画 -->
 <div id="loader"><div class="ring"></div><div class="ltxt">正在连接游戏服务器…</div></div>
 
-<!-- 首次 ID 设置 -->
+<!-- 账号登录 / 注册 -->
 <div id="idSetup">
   <div class="card">
-    <h2>创建你的玩家 ID</h2>
-    <div class="sub">这是你在游戏里的永久身份，好友通过这个 ID 找到你。<br/>ID 由 4~10 位字母数字组成，创建后不可修改。</div>
-    <input id="setupId" maxlength="10" placeholder="例如：Hunter_88" />
-    <input id="setupNick" maxlength="8" placeholder="昵称（可改）" style="margin-top:10px" />
+    <h2 id="authTitle">登录 / 注册</h2>
+    <div class="sub">账号就是你的唯一身份 ID，金币、装备、战绩全部跟随账号。<br/>请务必记住账号和密码。</div>
+    <input id="setupId" maxlength="10" placeholder="账号（4~10位字母数字）" />
+    <input id="setupPass" type="password" maxlength="20" placeholder="密码（至少4位）" style="margin-top:10px" />
+    <input id="setupNick" maxlength="8" placeholder="昵称（注册时填写）" style="margin-top:10px" />
     <div class="row">
-      <button class="btn primary" id="btnSetupDone" style="flex:1">开始游戏</button>
+      <button class="btn secondary" id="btnSetupLogin" style="flex:1">登 录</button>
+      <button class="btn primary" id="btnSetupDone" style="flex:1">注 册</button>
     </div>
     <div id="setupErr" style="color:var(--danger);font-size:12px;text-align:center;margin-top:8px"></div>
   </div>
@@ -278,6 +280,9 @@ input::placeholder{ color:#9a7b5e; }
       <button id="btnProfile">个人主页</button>
       <button id="btnShop">商城</button>
       <button id="btnInv">仓库</button>
+    </div>
+    <div class="btn-row" style="margin-top:8px">
+      <button id="btnLogout" class="btn secondary" style="flex:1;background:rgba(224,106,90,.15);border-color:rgba(224,106,90,.4);color:#ffb3a8">退出登录</button>
     </div>
     <div id="menuLog"></div>
     <p class="tip">操作：WASD/摇杆移动 · 鼠标/开火键射击 · 走到武器箱换枪。<br/>
@@ -652,33 +657,65 @@ let me=null,players={};
 let inGame=false,joined=false,shake=0,roundEndAt=0,roundActive=true;
 let myName='',myColor=COLORS[Math.floor(Math.random()*COLORS.length)];
 
-/* ============ 商城/仓库 ============ */
-const SHOP_ITEMS=[
-  {id:'armor1',nm:'防弹衣 I',ds:'减伤 20%',price:200,type:'armor',val:.2},
-  {id:'armor2',nm:'防弹衣 II',ds:'减伤 35%',price:500,type:'armor',val:.35},
-  {id:'armor3',nm:'防弹衣 III',ds:'减伤 50%',price:1200,type:'armor',val:.5},
-  {id:'helmet',nm:'头盔',ds:'减爆头伤 40%',price:300,type:'armor',val:.4},
-  {id:'mag1',nm:'扩容弹匣',ds:'子弹+50%',price:250,type:'mag',val:1.5},
-  {id:'mag2',nm:'极速弹匣',ds:'射速+25%',price:400,type:'rof',val:1.25},
-  {id:'silencer',nm:'消音器',ds:'开枪不暴露位置',price:350,type:'silent',val:1},
-  {id:'heavy',nm:'穿甲弹',ds:'伤害+30%',price:600,type:'dmg',val:1.3},
-  {id:'medkit',nm:'医疗包',ds:'开局回满生命',price:150,type:'hp',val:100},
-  {id:'boots',nm:'战术靴',ds:'移速+15%',price:300,type:'speed',val:1.15},
+/* ============ 商城/仓库/装备槽位 ============ */
+const SLOTS=[
+  {id:'weapon',nm:'武器'},
+  {id:'armor',nm:'防弹衣'},
+  {id:'helmet',nm:'头盔'},
+  {id:'boots',nm:'鞋子'},
+  {id:'accessory',nm:'配件'},
 ];
+const SHOP_ITEMS=[
+  /* 武器（槽位 weapon） */
+  {id:'rifle',nm:'步枪 M4',ds:'伤害 12 · 中距离',price:800,slot:'weapon',weapon:'rifle',icon:'🔫'},
+  {id:'shotgun',nm:'霰弹枪 S12',ds:'伤害 8×5 · 近战',price:900,slot:'weapon',weapon:'shotgun',icon:'🔫'},
+  {id:'smg',nm:'冲锋枪 UZI',ds:'伤害 6 · 射速极快',price:700,slot:'weapon',weapon:'smg',icon:'🔫'},
+  {id:'sniper',nm:'狙击枪 AWM',ds:'伤害 45 · 远距离',price:1500,slot:'weapon',weapon:'sniper',icon:'🔫'},
+  /* 防具（槽位 armor/helmet/boots） */
+  {id:'armor1',nm:'防弹衣 I',ds:'减伤 20%',price:200,slot:'armor',armor:.2,icon:'🛡️'},
+  {id:'armor2',nm:'防弹衣 II',ds:'减伤 35%',price:500,slot:'armor',armor:.35,icon:'🛡️'},
+  {id:'armor3',nm:'防弹衣 III',ds:'减伤 50%',price:1200,slot:'armor',armor:.5,icon:'🛡️'},
+  {id:'helmet',nm:'战术头盔',ds:'额外减伤 10%',price:300,slot:'helmet',helmet:.1,icon:'🪖'},
+  {id:'boots',nm:'战术靴',ds:'移速 +15%',price:300,slot:'boots',speed:1.15,icon:'👟'},
+  /* 配件（槽位 accessory） */
+  {id:'mag',nm:'扩容弹匣',ds:'伤害 +10%',price:250,slot:'accessory',dmg:1.1,icon:'📦'},
+  {id:'heavy',nm:'穿甲弹',ds:'伤害 +30%',price:600,slot:'accessory',dmg:1.3,icon:'💥'},
+];
+const SLOT_OF=it=>it.slot||'accessory';
 function invKey(){return 'dadi_inv_'+(myPid||'guest');}
+function equipKey(){return 'dadi_equip_'+(myPid||'guest');}
 function loadInv(){try{return JSON.parse(localStorage.getItem(invKey())||'[]');}catch(e){return [];}}
 function saveInv(a){try{localStorage.setItem(invKey(),JSON.stringify(a));}catch(e){}}
+function loadEquip(){try{return JSON.parse(localStorage.getItem(equipKey())||'{}');}catch(e){return {};}}
+function saveEquip(e){try{localStorage.setItem(equipKey(),JSON.stringify(e));}catch(e){}}
 let myInv=loadInv();
-function hasItem(id){return myInv.some(i=>i===id);}
+let myEquip=loadEquip();
+function hasItem(id){return myInv.indexOf(id)>=0;}
 function buyItem(id){
   const it=SHOP_ITEMS.find(i=>i.id===id);
   if(!it)return;
-  if(hasItem(id))return;
+  if(hasItem(id)){uiLog('已经拥有该物品');return;}
   if(stats.coins<it.price){uiLog('金币不足！');return;}
   stats.coins-=it.price;saveStats();
-  myInv.push(id);saveInv(myInv);
+  myInv.push(id);saveInv(myInv);persistAccount();
   refreshShop();refreshProfile();
   uiLog('购买成功：'+it.nm);
+}
+function equipItem(id){
+  const it=SHOP_ITEMS.find(i=>i.id===id);
+  if(!it)return;
+  const slot=SLOT_OF(it);
+  /* 同槽位换下旧的（旧的回仓库，不丢） */
+  myEquip[slot]=id;
+  saveEquip(myEquip);persistAccount();
+  refreshInv();refreshProfile();
+  uiLog('已装备：'+it.nm);
+}
+function unequipSlot(slot){
+  delete myEquip[slot];
+  saveEquip(myEquip);persistAccount();
+  refreshInv();refreshProfile();
+  uiLog('已卸下：'+SLOTS.find(s=>s.id===slot).nm);
 }
 function refreshShop(){
   $('shopCoins').textContent=stats.coins;
@@ -689,27 +726,50 @@ function refreshShop(){
   }).join('');
 }
 function refreshInv(){
-  if(!myInv.length){$('invList').innerHTML='<p style="text-align:center;color:var(--muted);padding:20px;">仓库是空的，去商城逛逛吧</p>';return;}
-  $('invList').innerHTML=myInv.map(id=>{
+  /* 当前装备概览 */
+  let html='<div style="margin-bottom:10px;background:rgba(240,192,104,.08);border:1px solid var(--line);border-radius:10px;padding:10px;">';
+  html+='<div style="font-size:12px;color:var(--gold);margin-bottom:6px;">当前装备</div>';
+  for(const s of SLOTS){
+    const eid=myEquip[s.id];
+    const it=eid?SHOP_ITEMS.find(i=>i.id===eid):null;
+    html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:13px;">'+
+      '<span style="color:var(--muted);width:70px;">'+(s.nm)+'</span>'+
+      '<span style="flex:1;color:#fff;">'+(it?it.nm:'<span style="color:#777">空</span>')+'</span>'+
+      (it?'<button onclick="unequipSlot(\''+s.id+'\')" style="background:rgba(224,106,90,.2);border:1px solid rgba(224,106,90,.4);color:#ffb3a8;border-radius:6px;padding:3px 8px;font-size:11px;">卸下</button>':'')+
+      '</div>';
+  }
+  html+='</div>';
+  if(!myInv.length){html+='<p style="text-align:center;color:var(--muted);padding:10px 0;">仓库是空的，去商城逛逛吧</p>';$('invList').innerHTML=html;return;}
+  html+='<div style="font-size:12px;color:var(--muted);margin-bottom:4px;">我的物品（'+myInv.length+'）</div>';
+  html+=myInv.map(id=>{
     const it=SHOP_ITEMS.find(i=>i.id===id);
     if(!it)return '';
-    return '<div class="shop-item"><div class="info"><div class="nm">'+it.nm+'</div><div class="ds">'+it.ds+'</div></div><span style="color:#8fce7a;font-size:12px;">已装备</span></div>';
+    const equipped=myEquip[SLOT_OF(it)]===id;
+    return '<div class="shop-item"><div class="info"><div class="nm">'+it.icon+' '+it.nm+'</div><div class="ds">'+it.ds+'</div></div>'+
+      (equipped?'<span style="color:#8fce7a;font-size:12px;margin:0 8px;">已装备</span>':'<button onclick="equipItem(\''+id+'\')" style="background:var(--gold);color:#2a1a0e;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:bold;">装备</button>')+
+      '</div>';
   }).join('');
+  $('invList').innerHTML=html;
 }
-window.buyItem=buyItem;
-let extractProg={}; /* 房主：每玩家已撤离秒数 */
-function freshPlayer(){const s=spawnPos();const p={id:'',name:myName,color:myColor,x:s.x,y:s.y,rx:s.x,ry:s.y,
-  score:0,hp:MAX_HP,alive:true,weapon:'pistol',invulnUntil:0,boostUntil:0,ghostUntil:0,extracted:false,
-  fx:0,fy:0,phase:Math.random()*6.28,deadUntil:0,kills:0,armor:0,dmgMul:1,spdMul:1};
-  /* 应用仓库装备 */
-  for(const id of myInv){
-    const it=SHOP_ITEMS.find(i=>i.id===id);
+window.buyItem=buyItem;window.equipItem=equipItem;window.unequipSlot=unequipSlot;
+/* 计算装备带来的局内加成 */
+function equippedBonuses(){
+  const b={weapon:'pistol',armor:0,dmgMul:1,spdMul:1,extraArmor:0};
+  for(const slot in myEquip){
+    const it=SHOP_ITEMS.find(i=>i.id===myEquip[slot]);
     if(!it)continue;
-    if(it.type==='armor')p.armor=Math.max(p.armor,it.val);
-    else if(it.type==='dmg')p.dmgMul*=it.val;
-    else if(it.type==='speed')p.spdMul*=it.val;
-    else if(it.type==='hp')p.hp=MAX_HP;
+    if(it.weapon)b.weapon=it.weapon;
+    if(it.armor)b.armor=Math.max(b.armor,it.armor);
+    if(it.helmet)b.extraArmor=Math.max(b.extraArmor,it.helmet);
+    if(it.speed)b.spdMul*=it.speed;
+    if(it.dmg)b.dmgMul*=it.dmg;
   }
+  return b;
+}
+let extractProg={}; /* 房主：每玩家已撤离秒数 */
+function freshPlayer(){const s=spawnPos();const b=equippedBonuses();const p={id:'',name:myName,color:myColor,x:s.x,y:s.y,rx:s.x,ry:s.y,
+  score:0,hp:MAX_HP,alive:true,weapon:b.weapon,invulnUntil:0,boostUntil:0,ghostUntil:0,extracted:false,
+  fx:0,fy:0,phase:Math.random()*6.28,deadUntil:0,kills:0,armor:b.armor,dmgMul:b.dmgMul,spdMul:b.spdMul,extraArmor:b.extraArmor};
   return p;
 }
 
@@ -787,7 +847,7 @@ function handleHostMsg(id,msg){
         const perp=Math.abs(dxq*py-dyq*px);
         if(perp<PLAYER_R+7){
           if(now<q.invulnUntil)break;
-          const dmg=Math.round(g.dmg*(1-(q.armor||0)));
+          const dmg=Math.round(g.dmg*(1-((q.armor||0)+(q.extraArmor||0))));
           q.hp-=dmg;
           broadcast({type:'hit',target:q.id,from:p.id,dmg:dmg});
           if(q.hp<=0){
@@ -1038,23 +1098,40 @@ function createRoom(){
 }
 
 let joining=false;
+let joinRetry=0;
 function joinRoom(code){
   if(joining)return;joining=true;
   cleanupPeer();isHost=false;
   myName=$('nick').value.trim()||('玩家'+Math.floor(10+Math.random()*90));
   me=freshPlayer();me.color=myColor;
   stats.games++;saveStats();
+  joinRetry=0;
+  doJoin(code);
+}
+function doJoin(code){
   showLoading('正在连接房间 '+code+' …');
   let opened=false;
   const timer=setTimeout(()=>{
-    if(!opened){hideLoading();if(peer){try{peer.destroy();}catch(e){}}peer=null;hostConn=null;uiLog('连接超时，请检查网络');resetToMenu();}
-  },20000);
+    if(!opened){
+      if(joinRetry<3){
+        joinRetry++;
+        showLoading('连接超时，第 '+joinRetry+' 次重试…');
+        if(peer){try{peer.destroy();}catch(e){}}
+        peer=null;hostConn=null;
+        clearTimeout(timer);
+        setTimeout(()=>{doJoin(code);},1200);
+      }else{
+        hideLoading();if(peer){try{peer.destroy();}catch(e){}}peer=null;hostConn=null;
+        uiLog('连接失败：网络不稳定，请稍后再试');resetToMenu();
+      }
+    }
+  },15000);
   peer=new Peer({config:ICE_CONFIG});
   peer.on('open',id=>{
     myPeerId=id;
     hostConn=peer.connect(code,{reliable:false});
     hostConn.on('open',()=>{
-      opened=true;clearTimeout(timer);hideLoading();roomCode=code;
+      opened=true;clearTimeout(timer);joinRetry=0;hideLoading();roomCode=code;
       hostConn.send({type:'hello',name:myName,color:myColor,pid:myPid,coins:stats.coins,kills:stats.kills});
     });
     hostConn.on('data',d=>handleHostData(d));
@@ -1065,10 +1142,24 @@ function joinRoom(code){
     if(inGame&&(e.type==='network'||e.type==='socket-error'||e.type==='server-error'||e.type==='disconnected')){
       uiLog('网络波动，正在重连…');if(peer&&!peer.destroyed)try{peer.reconnect();}catch(_){}return;
     }
-    hideLoading();clearTimeout(timer);
-    if(e.type==='peer-unavailable')uiLog('房间 '+code+' 不存在或已关闭');
-    else uiLog('连接失败：'+e.type);
-    resetToMenu();
+    clearTimeout(timer);
+    if(e.type==='peer-unavailable'){
+      if(joinRetry<3){
+        joinRetry++;
+        showLoading('房间 '+(code)+' 未响应，重试 '+joinRetry+'/3…');
+        if(peer){try{peer.destroy();}catch(e2){}}
+        peer=null;hostConn=null;
+        setTimeout(()=>{doJoin(code);},1000);
+      }else{
+        hideLoading();
+        uiLog('房间 '+code+' 不存在或已关闭，请确认房间码');
+        resetToMenu();
+      }
+    }else{
+      hideLoading();
+      uiLog('连接失败：'+e.type);
+      resetToMenu();
+    }
   });
   peer.on('disconnected',()=>{if(peer&&!peer.destroyed)try{peer.reconnect();}catch(e){}});
 }
@@ -1567,7 +1658,46 @@ function drawPlayer(p,isMe,ts){
     roundRect(ctx,bx,by,tw,th,9);ctx.fill();ctx.stroke();
     ctx.fillStyle='#fff';ctx.font='12px "PingFang SC",sans-serif';ctx.textAlign='center';ctx.fillText(p.emote,x,by+17);
   }
+  /* 武器模型：面朝 fx/fy 方向 */
+  drawGun(p.weapon||'pistol',x,y,Math.atan2(p.fy||0,p.fx||0),isMe);
   ctx.globalAlpha=1;
+}
+
+/* ============ 武器模型 ============ */
+function drawGun(w,x,y,ang,isMe){
+  const a=ang===0&&!isMe?0:ang; /* 玩家朝向 */
+  const len=w==='sniper'?30:(w==='rifle'?24:(w==='shotgun'?27:(w==='smg'?18:14)));
+  const gx=x+Math.cos(a)*(PLAYER_R+2),gy=y+Math.sin(a)*(PLAYER_R+2);
+  ctx.save();
+  ctx.translate(gx,gy);
+  ctx.rotate(a);
+  ctx.lineWidth=3;ctx.lineCap='round';
+  /* 枪管 */
+  const bodyCol=w==='sniper'?'#7fb069':(w==='rifle'?'#8a9ba8':(w==='shotgun'?'#b0603a':(w==='smg'?'#5d7f5a':'#4a4a52')));
+  ctx.strokeStyle=bodyCol;
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(len,0);ctx.stroke();
+  /* 枪身/握把 */
+  ctx.strokeStyle='#3a2a20';
+  ctx.lineWidth=2.5;
+  ctx.beginPath();
+  ctx.moveTo(0,0);ctx.lineTo(2,-4);ctx.lineTo(6,-6);
+  ctx.stroke();
+  /* 瞄准镜（狙/步枪） */
+  if(w==='sniper'||w==='rifle'){
+    ctx.strokeStyle='#202830';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(len-9,-3);ctx.lineTo(len-2,-3);ctx.stroke();
+  }
+  /* 弹匣 */
+  if(w==='smg'||w==='rifle'){
+    ctx.strokeStyle='#202830';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(5,0);ctx.lineTo(5,5);ctx.stroke();
+  }
+  /* 霰弹枪泵动 */
+  if(w==='shotgun'){
+    ctx.strokeStyle='#6b4a30';ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(10,4);ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawExtraction(ts){
@@ -1671,6 +1801,8 @@ function drawMyself(ts){
   ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(x-bw/2,y-34,bw,bh);
   ctx.fillStyle=me.hp>50?'#8fce7a':(me.hp>25?'#e8b93a':'#e06a5a');
   ctx.fillRect(x-bw/2,y-34,bw*me.hp/MAX_HP,bh);
+  /* 武器模型 */
+  drawGun(me.weapon||'pistol',x,y+bob,Math.atan2(me.fy||0,me.fx||0),true);
   ctx.globalAlpha=1;
 }
 
@@ -1777,7 +1909,7 @@ function hostApplyShot(p,dx,dy){
       const perp=Math.abs(dxq*py-dyq*px);
       if(perp<PLAYER_R+7){
         if(now<q.invulnUntil)break;
-        const dmg=Math.round(g.dmg*(p.dmgMul||1)*(1-(q.armor||0)));
+        const dmg=Math.round(g.dmg*(p.dmgMul||1)*(1-((q.armor||0)+(q.extraArmor||0))));
         q.hp-=dmg;
         broadcast({type:'hit',target:q.id,from:p.id,dmg:dmg});
         if(q.hp<=0){
@@ -1914,8 +2046,20 @@ function uiLog(txt){
   clearTimeout(logT);
   logT=setTimeout(()=>{sysLog.style.display='none';},5000);
 }
-function showLoading(t){$('menuLog').textContent=t;$('btnCreate').disabled=true;$('btnJoin').disabled=true;}
-function hideLoading(){$('menuLog').textContent='';$('btnCreate').disabled=false;$('btnJoin').disabled=false;}
+function showLoading(t){
+  $('menuLog').textContent=t;$('btnCreate').disabled=true;$('btnJoin').disabled=true;
+  const l=$('roomLoader');
+  if(!l){const d=document.createElement('div');d.id='roomLoader';d.style.cssText='position:fixed;inset:0;z-index:95;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(20,12,8,.92);backdrop-filter:blur(4px);';
+    d.innerHTML='<div style="width:56px;height:56px;border:4px solid rgba(217,154,91,.2);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite;"></div><div style="margin-top:16px;color:var(--gold);font-size:14px;letter-spacing:2px;" id="roomLoaderTxt"></div>';
+    document.body.appendChild(d);window.__roomLoader=d;
+  }
+  window.__roomLoader.style.display='flex';
+  document.getElementById('roomLoaderTxt').textContent=t||'连接中…';
+}
+function hideLoading(){
+  $('menuLog').textContent='';$('btnCreate').disabled=false;$('btnJoin').disabled=false;
+  if(window.__roomLoader)window.__roomLoader.style.display='none';
+}
 
 function refreshProfile(){
   /* 重新从 localStorage 读取，确保最新 */
@@ -1988,24 +2132,87 @@ document.querySelectorAll('#emoteBar button').forEach(b=>{
 });
 
 /* ===== 首次 ID 设置 ===== */
+/* ============ 账号系统（登录/注册/登出） ============ */
 function applyMyID(){
   $('myId').textContent=myPid;
   upselfBoard();
 }
-$('btnSetupDone').addEventListener('click',()=>{
-  const id=$('setupId').value.trim().toLowerCase().replace(/[^a-z0-9_]/g,'');
-  const nick=$('setupNick').value.trim();
-  if(id.length<4||id.length>10){$('setupErr').textContent='ID 需要 4~10 位字母数字下划线';return;}
-  if(!nick){$('setupErr').textContent='昵称不能为空';return;}
-  myPid=id;saveID(id);
-  myName=nick;$('nick').value=nick;
-  /* ID 确定后，加载该账号的独立战绩 */
-  stats=loadStats();
+const ACCT_KEY='dadi_accounts';
+const SESS_KEY='dadi_session';
+function loadAccounts(){try{return JSON.parse(localStorage.getItem(ACCT_KEY)||'{}');}catch(e){return {};}}
+function saveAccounts(a){try{localStorage.setItem(ACCT_KEY,JSON.stringify(a));}catch(e){}}
+function hashPass(p){let h=5381;for(let i=0;i<p.length;i++)h=((h<<5)+h+p.charCodeAt(i))>>>0;return 'h'+h.toString(36);}
+function loadSession(){try{return localStorage.getItem(SESS_KEY)||'';}catch(e){return '';}}
+function saveSession(s){try{localStorage.setItem(SESS_KEY,s);}catch(e){}}
+
+/* 从账号数据装载当前账号状态 */
+function mountAccount(acct){
+  myPid=acct.id;
+  myName=acct.nick;
+  myColor=acct.color;
+  $('nick').value=acct.nick;
+  stats=Object.assign({coins:0,games:0,extracts:0,kills:0,best:0,deaths:0},acct.stats||{});
+  myInv=Array.isArray(acct.inv)?acct.inv:[];
+  myEquip=Object.assign({},acct.equip||{});
+  saveID(acct.id);
+  saveSession(acct.id);
+  saveStats();saveInv(myInv);saveEquip(myEquip);
   $('idSetup').style.display='none';
   applyMyID();
   refreshProfile();
+}
+/* 把当前账号状态持久化到账号表 */
+function persistAccount(){
+  if(!myPid)return;
+  const a=loadAccounts();
+  a[myPid]={id:myPid,pass:a[myPid]?a[myPid].pass:'',nick:myName,color:myColor,stats,inv:myInv,equip:myEquip};
+  saveAccounts(a);
+}
+function logout(){
+  persistAccount();
+  cleanupPeer();joining=false;inGame=false;
+  myPid='';myName='';myInv=[];myEquip={};
+  stats={coins:0,games:0,extracts:0,kills:0,best:0,deaths:0};
+  saveSession('');
+  $('menu').style.display='none';
+  $('idSetup').style.display='flex';
+  $('setupId').value='';$('setupPass').value='';$('setupNick').value='';
+  $('setupErr').textContent='';
+  $('authTitle').textContent='登录 / 注册';
+}
+
+/* 登录 */
+$('btnSetupLogin').addEventListener('click',()=>{
+  const id=$('setupId').value.trim().toLowerCase().replace(/[^a-z0-9_]/g,'');
+  const pass=$('setupPass').value;
+  if(id.length<4||id.length>10){$('setupErr').textContent='账号需要 4~10 位字母数字下划线';return;}
+  if(!pass){$('setupErr').textContent='请输入密码';return;}
+  const a=loadAccounts();
+  if(!a[id]){$('setupErr').textContent='账号不存在，请先注册';return;}
+  if(a[id].pass!==hashPass(pass)){$('setupErr').textContent='密码错误';return;}
+  mountAccount(a[id]);
+  uiLog('欢迎回来，'+a[id].nick);
 });
-$('setupId').addEventListener('keydown',e=>{if(e.key==='Enter')$('btnSetupDone').click();});
+/* 注册 */
+$('btnSetupDone').addEventListener('click',()=>{
+  const id=$('setupId').value.trim().toLowerCase().replace(/[^a-z0-9_]/g,'');
+  const pass=$('setupPass').value;
+  const nick=$('setupNick').value.trim();
+  if(id.length<4||id.length>10){$('setupErr').textContent='账号需要 4~10 位字母数字下划线';return;}
+  if(pass.length<4){$('setupErr').textContent='密码至少 4 位';return;}
+  if(!nick){$('setupErr').textContent='昵称不能为空';return;}
+  const a=loadAccounts();
+  if(a[id]){$('setupErr').textContent='该账号已被注册，请直接登录';return;}
+  a[id]={id,pass:hashPass(pass),nick,color:COLORS[Math.floor(Math.random()*COLORS.length)],
+    stats:{coins:0,games:0,extracts:0,kills:0,best:0,deaths:0},inv:[],equip:{}};
+  saveAccounts(a);
+  mountAccount(a[id]);
+  uiLog('注册成功，欢迎 '+nick);
+});
+$('setupId').addEventListener('keydown',e=>{if(e.key==='Enter')$('btnSetupLogin').click();});
+$('setupPass').addEventListener('keydown',e=>{if(e.key==='Enter')$('btnSetupLogin').click();});
+/* 退出登录按钮 */
+$('btnLogout').addEventListener('click',()=>{logout();uiLog('已退出登录');});
 
 /* ===== 排行榜 / 好友 ===== */
 let lbTab='coin';
@@ -2049,14 +2256,19 @@ $('btnAddFriend').addEventListener('click',()=>{
 $('btnBoard').addEventListener('click',()=>{upselfBoard();renderBoard();$('boardPanel').style.display='flex';});
 $('btnCloseBoard').addEventListener('click',()=>{$('boardPanel').style.display='none';});
 
-/* 启动：检查首次 ID */
-if(!myPid){
+/* 启动：检查登录会话 */
+const _sess=loadSession();
+if(_sess){
+  const a=loadAccounts();
+  if(a[_sess]){
+    mountAccount(a[_sess]);
+  }else{
+    saveSession('');
+    $('idSetup').style.display='flex';
+  }
+}else{
   $('idSetup').style.display='flex';
   $('nick').value='';
-}else{
-  applyMyID();
-  $('nick').value=localStorage.getItem('dadi_v3_nick')||('玩家'+Math.floor(10+Math.random()*90));
-  refreshProfile();
 }
 /* 昵称变化时记住 */
 $('nick').addEventListener('change',()=>{try{localStorage.setItem('dadi_v3_nick',$('nick').value);}catch(e){}});
