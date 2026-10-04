@@ -256,11 +256,18 @@ input::placeholder{ color:#9a7b5e; }
 @keyframes bootFade{ to{ opacity:1; } }
 
 /* ===== 在线房间大厅 ===== */
-.hall-box{ margin:12px 0 4px; border:1px solid var(--line); border-radius:14px; padding:10px 12px;
+.hall-box{ margin:10px 0 4px; border:1px solid var(--line); border-radius:14px; padding:9px 12px;
   background:rgba(0,0,0,.18); max-height:178px; overflow-y:auto; }
+.hall-box.collapsed{ max-height:none; overflow:visible; padding-bottom:9px; }
+.hall-box.collapsed #hallList{ display:none; }
+.hall-box.has-room{ border-color:rgba(255,210,94,.5); }
 .hall-title{ font-size:12px; letter-spacing:2px; color:var(--muted); margin-bottom:8px;
-  display:flex; justify-content:space-between; align-items:center; }
-.hall-status{ font-size:10px; color:var(--gold); letter-spacing:1px; font-weight:400; }
+  display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none; }
+.hall-box.collapsed .hall-title{ margin-bottom:0; }
+.hall-box.has-room .hall-title{ color:#ffd27a; }
+.hall-status{ font-size:10px; color:var(--gold); letter-spacing:1px; font-weight:400; flex:1; text-align:right; margin-right:8px; }
+.hall-arrow{ font-size:10px; color:var(--muted); transition:transform .2s; display:inline-block; }
+.hall-box:not(.collapsed) .hall-arrow{ transform:rotate(90deg); }
 .hall-item{ display:block; width:100%; text-align:left; background:linear-gradient(135deg,rgba(217,154,91,.14),rgba(217,154,91,.05));
   border:1px solid rgba(217,154,91,.35); border-radius:10px; padding:8px 11px; margin-bottom:7px; cursor:pointer;
   transition:transform .12s,border-color .12s,background .12s; color:inherit; }
@@ -335,9 +342,10 @@ input::placeholder{ color:#9a7b5e; }
 .friend-row button{ background:rgba(224,106,90,.2); border:1px solid rgba(224,106,90,.4); color:#ffb3a8;
   border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; }
 .empty{ text-align:center; color:var(--muted); padding:24px 0; font-size:13px; }
-.menu-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
-.menu-grid button{ padding:10px 0; background:rgba(255,235,205,.07); border:1px solid var(--line);
-  color:var(--text); border-radius:10px; font-size:13px; cursor:pointer; }
+.menu-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-top:9px; }
+.menu-grid button{ padding:9px 0; background:rgba(255,235,205,.07); border:1px solid var(--line);
+  color:var(--text); border-radius:10px; font-size:12.5px; cursor:pointer; }
+.menu-grid button:nth-child(4){ grid-column:span 1; }
 .menu-grid button:active{ transform:scale(.98); }
 /* 模式选择卡片 */
 #modeSel .mode-card{ display:flex; gap:12px; align-items:center; padding:14px; border:1px solid var(--line);
@@ -418,11 +426,10 @@ input::placeholder{ color:#9a7b5e; }
         <circle cx="32" cy="38" r="5" fill="#ffd25e"/>
       </svg>
       <h1>大地图探险</h1>
-      <div class="ver">v8.0 · 三模式+保险箱大金</div>
+      <div class="ver">v9.6 · 三模式+保险箱大金</div>
       <p class="sub">收集金币 · 开枪夺宝 · 活到最后并<b>成功撤离</b><br/>被击杀会掉落身上<b>全部金币</b>！</p>
-      <p class="tip">操作：WASD/摇杆移动 · 鼠标/右摇杆射击 · 走到武器箱换枪。<br/>
-        <b>草丛</b>里蹲下隐蔽 · <b>幽灵瓶</b>隐身 8 秒 · <b>撤离点</b>金光处站 5 秒带走金币。<br/>
-        15 分钟内没撤离 = 本局金币全部丢失！</p>
+      <p class="tip">移动：WASD / 左摇杆 · 射击：鼠标 / 右摇杆或点按（可在设置切换）<br/>
+        <b>撤离点</b>金光处站 5 秒带走金币 · <b>草丛</b>隐蔽 · 15 分钟未撤离金币全失</p>
     </div>
     <div class="m-actions">
       <input id="nick" maxlength="8" placeholder="你的昵称" />
@@ -432,8 +439,8 @@ input::placeholder{ color:#9a7b5e; }
         <button id="btnCreate" class="btn primary">创建房间</button>
         <button id="btnJoin" class="btn secondary">加入房间</button>
       </div>
-      <div id="hallBox" class="hall-box">
-        <div class="hall-title">在线房间<span id="hallStatus" class="hall-status">连接中…</span></div>
+      <div id="hallBox" class="hall-box collapsed">
+        <div class="hall-title" id="hallToggle">在线房间<span id="hallStatus" class="hall-status">连接中…</span><span class="hall-arrow">▸</span></div>
         <div id="hallList"></div>
       </div>
       <div class="menu-grid">
@@ -1259,15 +1266,17 @@ const SHOP_ITEMS=[
    tag:'一枪致命',tier:'史诗',dmg:45,range:'远',rate:'慢',durability:90,
    ds:'伤害 45 · 超远距离 · 一发入魂',stats:[['伤害',45],['射程','远'],['射速','慢'],['耐久',90]]},
   /* 防具（槽位 armor/helmet/boots） */
-  {id:'armor1',nm:'防弹衣 I',price:100,slot:'armor',armor:.2,icon:'🛡️',
-   tag:'基础防护',tier:'普通',defense:20,durability:50,
-   ds:'减伤 20% · 初级防御',stats:[['减伤',20],['防御等级','I'],['耐久',50]]},
-  {id:'armor2',nm:'防弹衣 II',price:200,slot:'armor',armor:.35,icon:'🛡️',
-   tag:'标准防护',tier:'稀有',defense:35,durability:70,
-   ds:'减伤 35% · 中级防御',stats:[['减伤',35],['防御等级','II'],['耐久',70]]},
-  {id:'armor3',nm:'防弹衣 III',price:400,slot:'armor',armor:.5,icon:'🛡️',
-   tag:'顶级防护',tier:'史诗',defense:50,durability:100,
-   ds:'减伤 50% · 高级防御',stats:[['减伤',50],['防御等级','III'],['耐久',100]]},
+  /* 防弹衣 9 个等级（减伤 10% → 95%） */
+  ...[10,20,30,40,50,62,73,84,95].map((pct,i)=>{
+    const RN=['I','II','III','IV','V','VI','VII','VIII','IX'];
+    const PR=[100,180,300,460,680,1000,1500,2300,3600];
+    const DU=[50,56,62,68,74,80,86,93,100];
+    const TAG=['入门','入门','标准','标准','强化','强化','高级','顶级','顶配'];
+    const TIER=i<2?'普通':(i<4?'稀有':(i<7?'史诗':'传说'));
+    return {id:'armor'+(i+1),nm:'防弹衣 '+RN[i],price:PR[i],slot:'armor',armor:pct/100,icon:'🛡️',
+      tag:TAG[i]+'防护',tier:TIER,defense:pct,durability:DU[i],
+      ds:'减伤 '+pct+'% · 防御等级 '+RN[i],stats:[['减伤',pct],['防御等级',RN[i]],['耐久',DU[i]]]};
+  }),
   {id:'helmet',nm:'战术头盔',price:120,slot:'helmet',helmet:.1,icon:'🪖',
    tag:'头部防护',tier:'稀有',defense:10,durability:60,
    ds:'额外减伤 10% · 保护头部',stats:[['额外减伤',10],['防御等级','II'],['耐久',60]]},
@@ -1461,6 +1470,9 @@ function equippedBonuses(){
     if(it.speed)b.spdMul*=it.speed;
     if(it.dmg)b.dmgMul*=it.dmg;
   }
+  /* 防弹衣 + 头盔合计减伤封顶 98%（永远不可能完全免伤） */
+  const totalArmor=Math.min(.98,(b.armor||0)+(b.extraArmor||0));
+  b.armor=totalArmor;b.extraArmor=0;
   return b;
 }
 let extractProg={}; /* 房主：每玩家已撤离秒数 */
@@ -2509,6 +2521,9 @@ function tryCollect(p){
           }
           /* 本局内临时穿戴（撤离成功才真正保存入仓库） */
           myEquip[SLOT_OF(li)]=it.itemId;
+          /* 立即刷新局内加成（护甲/伤害/移速/武器），含 98% 减伤封顶 */
+          {const nb=equippedBonuses();
+           if(me){me.armor=nb.armor;me.extraArmor=nb.extraArmor;me.dmgMul=nb.dmgMul;me.spdMul=nb.spdMul;if(li.weapon)me.weapon=nb.weapon;}}
           toastTop('🎒 捡到装备：'+li.nm+'，已自动穿戴');
           uiLog('装备 '+li.nm+' 已穿戴，撤离成功后可收入仓库');
         }
@@ -3737,7 +3752,8 @@ $('roomCode').addEventListener('keydown',e=>{
 /* ===== 在线房间大厅（ntfy 公共中继：房主每 5s 心跳注册，客户端 SSE 订阅） ===== */
 const HALL_TOPIC='zqy-dadi-hall-9f3a2v';
 let hallES=null,hallTimer=null,hallRooms=new Map(),hallOnline=false;
-let hallBeatTimer=null;
+let hallBeatTimer=null,hallBeatRoom='';
+const hallClosed=new Set(); /* 本会话自己已关闭/离开的房间码，不再在大厅显示（防 SSE 回看旧心跳） */
 function hallEsc(s){return String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
 function hallPost(obj){
   try{ fetch('https://ntfy.sh/'+HALL_TOPIC,{method:'POST',mode:'cors',body:JSON.stringify(obj)}).catch(()=>{}); }catch(e){}
@@ -3747,7 +3763,8 @@ function hallRender(){
   if(!box)return;
   const now=Date.now();
   for(const [code,r] of Array.from(hallRooms)){ if(now-r.last>16000)hallRooms.delete(code); }
-  const list=[...hallRooms.values()].filter(r=>r.room!==roomCode).sort((a,b)=>b.last-a.last);
+  const list=[...hallRooms.values()].filter(r=>r.room!==roomCode&&!hallClosed.has(r.room)).sort((a,b)=>b.last-a.last);
+  const hb=$('hallBox');if(hb)hb.classList.toggle('has-room',list.length>0);
   if(st)st.textContent=list.length?(list.length+' 个房间'):(hallOnline?'暂无房间':'连接中…');
   if(!list.length){
     box.innerHTML=hallOnline
@@ -3770,7 +3787,7 @@ function hallStart(){
   hallRooms=new Map();hallOnline=false;
   const box=$('hallList');if(box)box.innerHTML='<div class="hall-empty">正在获取在线房间…</div>';
   try{
-    hallES=new EventSource('https://ntfy.sh/'+HALL_TOPIC+'/sse?since=20s');
+    hallES=new EventSource('https://ntfy.sh/'+HALL_TOPIC+'/sse?since=8s');
     hallES.onopen=()=>{hallOnline=true;hallRender();};
     hallES.onmessage=e=>{
       hallOnline=true;
@@ -3778,8 +3795,11 @@ function hallStart(){
         const env=JSON.parse(e.data);
         const body=(env&&env.message!==undefined)?env.message:e.data;
         const d=JSON.parse(body);
-        if(d.leave){hallRooms.delete(d.leave);}
-        else if(d.room&&/^[A-Z0-9]{5}$/.test(d.room)){hallRooms.set(d.room,{...d,last:Date.now()});}
+        if(d.leave){hallRooms.delete(d.leave);hallClosed.add(d.leave);}
+        else if(d.room&&/^[A-Z0-9]{5}$/.test(d.room)){
+          if(hallClosed.has(d.room))return; /* 自己已关闭的房间不再显示 */
+          hallRooms.set(d.room,{...d,last:Date.now()});
+        }
       }catch(_){}
     };
     hallES.onerror=()=>{hallOnline=false;};
@@ -3793,6 +3813,8 @@ function hallStop(){
 }
 function hallBeatStart(){
   hallBeatStop();
+  hallBeatRoom=roomCode;
+  hallClosed.delete(roomCode); /* 重新开房：解除屏蔽 */
   const send=()=>{
     if(!isHost||!roomCode)return;
     hallPost({room:roomCode,name:myName||'房主',mode:gameMode,n:Math.max(1,Object.keys(players).length),t:Date.now()});
@@ -3801,8 +3823,18 @@ function hallBeatStart(){
 }
 function hallBeatStop(leave){
   if(hallBeatTimer){clearInterval(hallBeatTimer);hallBeatTimer=null;}
-  if(leave&&roomCode)hallPost({leave:roomCode});
+  if(leave&&hallBeatRoom){
+    /* 立即从大厅注销：发 leave + 本地立刻移除并屏蔽，避免退出后还看到自己的房间 */
+    hallPost({leave:hallBeatRoom});
+    hallRooms.delete(hallBeatRoom);hallClosed.add(hallBeatRoom);
+    hallRender();
+  }
+  hallBeatRoom='';
 }
+/* 点击大厅标题 → 折叠/展开房间列表 */
+$('hallToggle').addEventListener('click',()=>{
+  $('hallBox').classList.toggle('collapsed');
+});
 /* 点击大厅房间卡片 → 直接加入 */
 $('hallList').addEventListener('click',e=>{
   const it=e.target.closest&&e.target.closest('.hall-item');
