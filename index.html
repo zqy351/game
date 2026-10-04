@@ -642,28 +642,34 @@ function heightAt(tx,ty){
   return noiseAt(nA,NW,NH,u,v)*.55+noiseAt(nB,NW,NH,u*2.2,v*2.2)*.30+noiseAt(nC,NW,NH,u*5,v*5)*.15;
 }
 const grid=[];
-for(let y=0;y<MAP_H;y++)grid.push(new Array(MAP_W).fill(0));
-for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
-  const h=heightAt(x,y);
-  grid[y][x]= h<.30?0 : h<.50?1 : h<.64?4 : h<.72?3 : 4; /* 5=冰已删除：高海拔区域改为沙地(4)，不再生成冰面 */
-}
-for(let i=0;i<9;i++){
-  const cx=2+Math.floor(rng()*(MAP_W-4)), cy=2+Math.floor(rng()*(MAP_H-4)), r=3+rng()*5;
-  for(let y=Math.max(1,cy-7);y<=Math.min(MAP_H-2,cy+7);y++)
-    for(let x=Math.max(1,cx-7);x<=Math.min(MAP_W-2,cx+7);x++)
-      if(Math.hypot(x-cx,y-cy)<=r)grid[y][x]=3;
-}
-for(let i=0;i<140;i++){
-  const x=1+Math.floor(rng()*(MAP_W-2)), y=1+Math.floor(rng()*(MAP_H-2));
-  if(grid[y][x]===0||grid[y][x]===4)grid[y][x]=2;
-}
-for(let x=0;x<MAP_W;x++){grid[0][x]=6;grid[MAP_H-1][x]=6;}
-for(let y=0;y<MAP_H;y++){grid[y][0]=6;grid[y][MAP_W-1]=6;}
-/* 草丛（隐蔽） */
 const bushes=[];
-for(let y=0;y<MAP_H;y++){bushes.push(new Array(MAP_W).fill(false));
-  for(let x=0;x<MAP_W;x++){ if((grid[y][x]===0||grid[y][x]===1)&&rng()<0.22)bushes[y][x]=true; }
+/* 重新生成地形（水体/草地/沙地/岩石/边界 + 草丛），可被 rebuildMap 重复调用 */
+function genTerrain(){
+  grid.length=0;
+  for(let y=0;y<MAP_H;y++)grid.push(new Array(MAP_W).fill(0));
+  for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
+    const h=heightAt(x,y);
+    grid[y][x]= h<.30?0 : h<.50?1 : h<.64?4 : h<.72?3 : 4; /* 5=冰已删除：高海拔区域改为沙地(4)，不再生成冰面 */
+  }
+  for(let i=0;i<9;i++){
+    const cx=2+Math.floor(rng()*(MAP_W-4)), cy=2+Math.floor(rng()*(MAP_H-4)), r=3+rng()*5;
+    for(let y=Math.max(1,cy-7);y<=Math.min(MAP_H-2,cy+7);y++)
+      for(let x=Math.max(1,cx-7);x<=Math.min(MAP_W-2,cx+7);x++)
+        if(Math.hypot(x-cx,y-cy)<=r)grid[y][x]=3;
+  }
+  for(let i=0;i<140;i++){
+    const x=1+Math.floor(rng()*(MAP_W-2)), y=1+Math.floor(rng()*(MAP_H-2));
+    if(grid[y][x]===0||grid[y][x]===4)grid[y][x]=2;
+  }
+  for(let x=0;x<MAP_W;x++){grid[0][x]=6;grid[MAP_H-1][x]=6;}
+  for(let y=0;y<MAP_H;y++){grid[y][0]=6;grid[y][MAP_W-1]=6;}
+  /* 草丛（隐蔽） */
+  bushes.length=0;
+  for(let y=0;y<MAP_H;y++){bushes.push(new Array(MAP_W).fill(false));
+    for(let x=0;x<MAP_W;x++){ if((grid[y][x]===0||grid[y][x]===1)&&rng()<0.22)bushes[y][x]=true; }
+  }
 }
+genTerrain();
 /* ============ 房区（中心大型房区 + 外围小房） ============ */
 let rooms=[]; /* {x0,y0,x1,y1,doors:[{x,y,locked,opened}],type:'big'|'small',vault:bool} */
 let visitedRooms=new Set(); /* 进入过的房间永久透明（掀屋顶），避免进出时屋顶闪烁 */
@@ -745,6 +751,19 @@ function makeRooms(){
   }
 }
 makeRooms();
+/* 强制重新生成整张地图：新建房间/加入房间时调用，清除本地残留的上局状态（开过的金库门、掀开的屋顶、旧物资/容器），保证多端房间状态一致 */
+function rebuildMap(){
+  genTerrain();
+  lockedDoorCells.clear();
+  visitedRooms.clear();
+  makeRooms();
+  safes=[];
+  items=[];
+  monsters=[];
+  extractProg={};
+  myLooted=[];myGolds=0;
+  window.__extractedDone=false;
+}
 function inRoom(x,y){
   const tx=Math.floor(x/TILE),ty=Math.floor(y/TILE);
   for(let i=0;i<rooms.length;i++){
@@ -1898,6 +1917,7 @@ function newRound(){
 }
 
 function createRoom(){
+  rebuildMap(); /* 强制重新生成地图：清除本地残留的上局门锁/屋顶/物资状态 */
   cleanupPeer();
   isHost=true;
   myName=$('nick').value.trim()||('玩家'+Math.floor(10+Math.random()*90));
@@ -1945,6 +1965,7 @@ let joining=false;
 let joinRetry=0;
 function joinRoom(code){
   if(joining)return;joining=true;
+  rebuildMap(); /* 强制重新生成地图：加入房间前清掉本地残留的上局门锁/屋顶/物资状态 */
   cleanupPeer();isHost=false;
   myName=$('nick').value.trim()||('玩家'+Math.floor(10+Math.random()*90));
   me=freshPlayer();me.color=myColor;
