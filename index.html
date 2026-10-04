@@ -588,15 +588,12 @@ function makeRooms(){
   link(0,4,openDoor(X0+3,hy));
   link(1,5,openDoor(X0+8,hy));
   link(2,6,openDoor(X0+13,hy));
-  /* 外墙大门（3 个入口） */
-  cells[4].doors.push(openDoor(X0+2,Y1));
-  cells[6].doors.push(openDoor(X1,Y0+3));
-  cells[3].doors.push(openDoor(X1,Y0+9));
-  /* ---- 钥匙房间（vault）：R7 右下角（大房间），需要房卡才能进入 ---- */
+  /* 外墙大门（2 个入口：R4 南门、R3 东门；R6/R7 共享东外墙，为封死金库不开东门，R6 走内墙门连通） */
+  cells[4].doors.push(openDoor(X0+2,Y1));   /* R4 南外墙门 */
+  cells[3].doors.push(openDoor(X1,Y0+3));   /* R3 东外墙门（上排 Y0+1..Y0+5，与 R7 不共享墙段） */
+  /* ---- 钥匙房间（vault）：R7 右下角，只有 1 个入口（R6↔R7 内墙锁门），其余三面封死 ---- */
   const lockDoor=(x,y)=>{lockedDoorCells.add(y*MAP_W+x);return {x,y,locked:true,opened:false};};
-  link(6,7,lockDoor(X0+15,Y0+8));     /* R6↔R7 的门上锁 */
-  link(3,7,lockDoor(X0+18,hy));       /* R3↔R7 的门上锁 */
-  cells[7].doors.push(lockDoor(X0+18,Y1)); /* R7 南门（唯一外墙入口）上锁 */
+  link(6,7,lockDoor(X0+15,Y0+8));     /* R6↔R7 内墙：金库唯一入口，上锁 */
   cells[7].vault=true;
   for(const c of cells)rooms.push(c);
   /* ---- 外围小房（6 个，不重叠、不刷水上） ---- */
