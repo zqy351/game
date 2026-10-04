@@ -578,18 +578,16 @@ function makeRooms(){
   /* 开普通门（两两连通，确保每个房间都能进入） */
   const openDoor=(x,y)=>{grid[y][x]=7;return {x,y,locked:false,opened:true};};
   const link=(a,b,door)=>{cells[a].doors.push(door);cells[b].doors.push(door);};
-  /* 垂直内墙：上排 R0-R1、R1-R2、R2-R3；下排 R4-R5、R5-R6、R6-R7 */
+  /* 垂直内墙：上排 R0-R1、R1-R2、R2-R3；下排 R4-R5、R5-R6（R6↔R7 是锁门，由下方 vault 段控制） */
   link(0,1,openDoor(X0+5,Y0+2));
   link(1,2,openDoor(X0+10,Y0+2));
   link(2,3,openDoor(X0+15,Y0+2));
   link(4,5,openDoor(X0+5,Y0+8));
   link(5,6,openDoor(X0+10,Y0+8));
-  link(6,7,openDoor(X0+15,Y0+8));
-  /* 水平内墙：R0-R4、R1-R5、R2-R6、R3-R7 */
+  /* 水平内墙：R0-R4、R1-R5、R2-R6（R3↔R7 是锁门，由下方 vault 段控制） */
   link(0,4,openDoor(X0+3,hy));
   link(1,5,openDoor(X0+8,hy));
   link(2,6,openDoor(X0+13,hy));
-  link(3,7,openDoor(X0+18,hy));
   /* 外墙大门（3 个入口） */
   cells[4].doors.push(openDoor(X0+2,Y1));
   cells[6].doors.push(openDoor(X1,Y0+3));
