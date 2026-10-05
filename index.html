@@ -3607,20 +3607,15 @@ function drawMinimap(){
     ctx.restore();
     if(p.id===myPeerId){ctx.strokeStyle='#fff';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(mxp,myp,4.5,0,6.28);ctx.stroke();}
   };
+  /* 玩家点：dot 循环统一画所有人（含自己），视野扇形已移除（用户要求） */
   for(const p of Object.values(players))dot(p);
-  /* 自己强制画 + 朝向箭头 + 视野扇形 */
   if(me){
     const mxp=x+me.x*k,myp=y+me.y*k;
     const a=Math.atan2(me.fy||0,me.fx||0);
-    /* 视野扇形（越黑越需要，暗夜模式下更明显） */
-    const visFade=gameMode==='night'?0.35:0.18;
     ctx.save();ctx.translate(mxp,myp);ctx.rotate(a);
-    ctx.fillStyle='rgba(255,255,255,'+visFade+')';
-    ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,14,-0.7,0.7);ctx.closePath();ctx.fill();
-    ctx.restore();
-    ctx.fillStyle=me.color;ctx.beginPath();ctx.translate(mxp,myp);ctx.rotate(a);
+    ctx.fillStyle=me.color;ctx.beginPath();
     ctx.moveTo(4.2,0);ctx.lineTo(-2.6,2.4);ctx.lineTo(-2.6,-2.4);ctx.closePath();ctx.fill();
-    ctx.setTransform(1,0,0,1,0,0);
+    ctx.restore();
   }
   /* 信号标记（小地图：金色三角） */
   for(const s of signals){
@@ -3848,6 +3843,8 @@ function loop(ts){
   const dt=Math.min(.05,((ts-lastT)/1000)||.016);
   lastT=ts;
   if(me&&inGame){
+    /* NaN 防御：me 坐标若损坏则重置到出生点，避免角色卡死/视角错乱 */
+    if(!isFinite(me.x)||!isFinite(me.y)){me.x=Math.round(WORLD_W/2);me.y=Math.round(WORLD_H/2);me.fx=0;me.fy=0;}
     /* 空投：房主开局 60s 后每 120~180s 掉一个（最多3个）；所有人靠近自动开启 1.2s */
     if(isHost&&roundEndAt){
       const el=Math.max(0,ROUND_MS-(roundEndAt-Date.now()));
