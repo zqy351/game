@@ -257,6 +257,8 @@ input::placeholder{ color:#9a7b5e; }
 @keyframes bootFade{ to{ opacity:1; } }
 
 /* ===== 在线房间大厅 ===== */
+let hallFilter='all'; /* 大厅模式筛选：all/normal/night/nightmare */
+
 .hall-box{ margin:10px 0 4px; border:1px solid var(--line); border-radius:14px; padding:9px 12px;
   background:rgba(0,0,0,.18); max-height:178px; overflow-y:auto; }
 .hall-box.collapsed{ max-height:none; overflow:visible; padding-bottom:9px; }
@@ -442,6 +444,12 @@ input::placeholder{ color:#9a7b5e; }
       </div>
       <div id="hallBox" class="hall-box collapsed">
         <div class="hall-title" id="hallToggle">在线房间<span id="hallStatus" class="hall-status">连接中…</span><span class="hall-arrow">▸</span></div>
+        <div id="hallFilter" style="display:flex;gap:5px;padding:6px 10px 0;flex-wrap:wrap;">
+          <button class="hf-btn" data-f="all" style="border:1px solid var(--line);background:rgba(255,255,255,.08);color:var(--gold);border-radius:7px;padding:3px 8px;font-size:11px;">全部</button>
+          <button class="hf-btn" data-f="normal" style="border:1px solid var(--line);background:transparent;color:#ccc;border-radius:7px;padding:3px 8px;font-size:11px;">普通</button>
+          <button class="hf-btn" data-f="night" style="border:1px solid var(--line);background:transparent;color:#ccc;border-radius:7px;padding:3px 8px;font-size:11px;">暗夜</button>
+          <button class="hf-btn" data-f="nightmare" style="border:1px solid var(--line);background:transparent;color:#ccc;border-radius:7px;padding:3px 8px;font-size:11px;">强化暗夜</button>
+        </div>
         <div id="hallList"></div>
       </div>
       <div class="menu-grid">
@@ -514,6 +522,8 @@ input::placeholder{ color:#9a7b5e; }
       <div class="stat"><div class="v" id="stDeaths">0</div><div class="k">总死亡</div></div>
       <div class="stat"><div class="v" id="stGolds" style="color:#ffd700">0</div><div class="k">收藏大金</div></div>
     </div>
+    <div style="margin:10px 0 4px;font-size:13px;color:var(--gold);text-align:center;">— 荣誉徽章 —</div>
+    <div id="badgeRow" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;min-height:40px;"></div>
     <div class="row">
       <button class="btn secondary" id="btnCloseProfile">关闭</button>
       <button class="btn secondary" id="btnResetStats">清空战绩</button>
@@ -1258,7 +1268,16 @@ const SLOTS=[
   {id:'helmet',nm:'头盔'},
   {id:'boots',nm:'鞋子'},
   {id:'accessory',nm:'配件'},
+  {id:'skin',nm:'皮肤'},
 ];
+const SKINS={
+  soldier:{nm:'侦察兵·绿',price:0,color:'#7ecb54',fx:null,ds:'初始皮肤 · 丛林迷彩'},
+  blaze:{nm:'烈焰战警',price:800,color:'#ff8c3b',fx:'flame',ds:'火红战甲 · 行走带火星粒子'},
+  frost:{nm:'极寒冰锋',price:1200,color:'#6bc5ff',fx:'frost',ds:'冰蓝光环 · 寒气缭绕'},
+  shadow:{nm:'暗影刺客',price:2000,color:'#9b5de5',fx:'shadow',ds:'紫黑幻影 · 暗影拖尾'},
+  mecha:{nm:'机甲卫士',price:4000,color:'#cfd8dc',fx:'mecha',ds:'银白机甲 · 装甲线条+能量核心'},
+  gold:{nm:'黄金战神',price:8000,color:'#ffd700',fx:'gold',ds:'纯金战甲 · 金色光环+光粒'},
+};
 const SHOP_ITEMS=[
   /* 武器（槽位 weapon） */
   {id:'rifle',nm:'步枪 M4',price:300,slot:'weapon',weapon:'rifle',icon:'🔫',
@@ -1322,6 +1341,13 @@ const SHOP_ITEMS=[
   {id:'medkit',nm:'医疗包',price:150,kind:'med',heal:60,useMs:2000,icon:'🧰',
    tag:'消耗品',tier:'稀有',
    ds:'使用后 2 秒恢复 60 点生命',stats:[['恢复',60],['使用时间','2秒']]},
+  /* 皮肤（槽位 skin：外观特效，不叠属性） */
+  ...Object.keys(SKINS).filter(k=>k!=='soldier').map(k=>{
+    const s=SKINS[k];
+    return {id:'skin_'+k,nm:s.nm,price:s.price,slot:'skin',skin:k,icon:'🎨',
+      tag:s.fx==='gold'?'传说':(s.fx==='mecha'?'史诗':'稀有'),tier:s.fx==='gold'?'传说':(s.fx==='mecha'?'史诗':'稀有'),durability:999,
+      ds:s.ds,stats:[['品质',s.fx==='gold'?'传说':(s.fx==='mecha'?'史诗':'稀有')],['特效',s.fx],['耐久','永久']]};
+  }),
   /* 房卡（钥匙）：昂贵，耐久 20，用来开启金库大门 */
   {id:'keycard',nm:'房卡',price:9500,kind:'key',durability:20,icon:'🎴',
    tag:'金库钥匙',tier:'史诗',
@@ -1508,6 +1534,52 @@ function showBanner(txt,color,ms){
 }
 /* 信号标记：向自己朝向 180px 处发金色标记（全房可见 8 秒） */
 let signals=[];
+/* 空投系统：局中随机空投补给箱（房主权威生成与开启） */
+let drops=[],dropTimer=0,dropOpenedUntil=0;
+function spawnDrop(){
+  if(!isHost)return;
+  if(drops.length>=3)return;
+  for(let tries=0;tries<60;tries++){
+    const tx=Math.floor(Math.random()*MAP_W),ty=Math.floor(Math.random()*MAP_H);
+    if(!isSolid(tx,ty)&&speedAt(tx,ty)>=0.95&&!inBushNear(tx*TILE,ty*TILE,20)){
+      const d={id:'dr'+Math.random().toString(36).slice(2,8),x:tx*TILE+24,y:ty*TILE+24,until:Date.now()+240000};
+      drops.push(d);
+      broadcast({type:'dropSpawn',id:d.id,x:d.x,y:d.y});
+      uiLog('📦 空投补给箱已降落！');
+      return;
+    }
+  }
+}
+function openDrop(d){
+  if(me.extracted||!me.alive)return;
+  if(isHost){
+    const roll=Math.random();
+    let reward;
+    if(roll<0.2){reward={type:'big'};me.bigGold=(me.bigGold||0)+1;}
+    else if(roll<0.5){const wl=['smg','rifle','dmr','shotgun','minigun'][Math.floor(Math.random()*5)];reward={type:'weapon',w:wl};}
+    else if(roll<0.7){const armor=1+Math.floor(Math.random()*5);reward={type:'armor',lv:armor};}
+    else{reward={type:'coins',n:300+Math.floor(Math.random()*500)};}
+    d.opened=true;
+    broadcast({type:'dropOpen',id:d.id,reward});
+    grantDrop(me,reward);
+  }else if(hostConn&&hostConn.open){
+    hostConn.send({type:'dropOpen',id:d.id,pid:myPeerId});
+  }
+}
+function grantDrop(p,reward){
+  if(reward.type==='big'){p.bigGold=(p.bigGold||0)+1;uiLog('空投里开出了【大金】！已放入背包');toastTop('🏆 空投开出大金！');}
+  else if(reward.type==='weapon'){
+    const g=GUNS[reward.w];p.weapon=reward.w;ammo[reward.w]=g.mag;
+    uiLog('空投捡到 '+g.name+'！');toastTop('🔫 获得 '+g.name);
+    sfx.gem();
+  }else if(reward.type==='armor'){
+    p.armor=Math.max(p.armor||0,reward.lv/10);
+    uiLog('空投获得 '+(reward.lv*10)+'% 防弹衣！');toastTop('🛡️ 防御提升');
+    sfx.gem();
+  }else{
+    p.score=(p.score||0)+reward.n;uiLog('空投金币 +'+reward.n);toastTop('💰 金币 +'+reward.n);sfx.gem();
+  }
+}
 function sendSignal(){
   if(!me||!me.alive||!inGame)return;
   const dx=(me.fx||1),dy=(me.fy||0),l=Math.hypot(dx,dy)||1;
@@ -1618,6 +1690,20 @@ function handleHostMsg(id,msg){
     fireHostBullets(p,msg.dx,msg.dy);
   }else if(msg.type==='emote'&&players[id]){
     broadcast({type:'emote',id,phrase:String(msg.phrase||'').slice(0,8)});
+  }else if(msg.type==='dropOpen'){
+    /* 客端请求开空投（房主权威） */
+    const d=drops.find(x=>x.id===msg.id&&!x.opened);
+    const p=players[id];
+    if(!d||!p)return;
+    d.opened=true;
+    const roll=Math.random();
+    let reward;
+    if(roll<0.2){reward={type:'big'};}
+    else if(roll<0.5){reward={type:'weapon',w:['smg','rifle','dmr','shotgun','minigun'][Math.floor(Math.random()*5)]};}
+    else if(roll<0.7){reward={type:'armor',lv:1+Math.floor(Math.random()*5)};}
+    else{reward={type:'coins',n:300+Math.floor(Math.random()*500)};}
+    broadcast({type:'dropOpen',id:d.id,target:p.id,reward});
+    grantDrop(p,reward);
   }else if(msg.type==='openSafe'){
     /* 客端请求开箱（房主权威判定，含开启读条） */
     const s=safes.find(x=>x.id===msg.id&&!x.opened&&!x.opening);
@@ -1817,6 +1903,13 @@ function handleHostData(msg){
     }
   }else if(msg.type==='signal'){
     signals.push({x:msg.x,y:msg.y,by:msg.by||'队友',until:Date.now()+8000});
+  }else if(msg.type==='dropSpawn'){
+    drops.push({id:msg.id,x:msg.x,y:msg.y,until:Date.now()+240000});
+    uiLog('📦 空投补给箱已降落！小地图可查看');
+  }else if(msg.type==='dropOpen'){
+    const d=drops.find(x=>x.id===msg.id);
+    if(d)d.opened=true;
+    if(msg.target===myPeerId&&msg.reward)grantDrop(me,msg.reward);
   }else if(msg.type==='respawn'){
     if(msg.id===myPeerId){
       me.x=msg.x;me.y=msg.y;me.hp=MAX_HP;me.alive=true;me.score=0;
@@ -3033,7 +3126,9 @@ function drawPlayer(p,isMe,ts){
   ctx.fillStyle='rgba(0,0,0,.22)';ctx.beginPath();ctx.ellipse(x,sy,PLAYER_R*.8,PLAYER_R*.35,0,0,6.28);ctx.fill();
   if(now<p.invulnUntil&&Math.floor(now/90)%2===0){ctx.globalAlpha=1;return;}
   const grad=ctx.createRadialGradient(x-4,y-5,2,x,y,PLAYER_R);
-  grad.addColorStop(0,'rgba(255,255,255,.5)');grad.addColorStop(.4,p.color);grad.addColorStop(1,shade(p.color,-28));
+  const skn=(p.equip&&p.equip.skin&&SKINS[p.equip.skin])?SKINS[p.equip.skin]:null;
+  const bodyCol=skn?skn.color:p.color;
+  grad.addColorStop(0,'rgba(255,255,255,.5)');grad.addColorStop(.4,bodyCol);grad.addColorStop(1,shade(bodyCol,-28));
   ctx.beginPath();ctx.arc(x,y,PLAYER_R,0,6.28);ctx.fillStyle=grad;ctx.fill();
   ctx.lineWidth=2.5;ctx.strokeStyle='rgba(0,0,0,.35)';ctx.stroke();
   const l=Math.hypot(p.fx||0,p.fy||0)||1,ex=(p.fx||0)/l*3,ey=(p.fy||0)/l*3;
@@ -3078,6 +3173,29 @@ function drawPlayer(p,isMe,ts){
   }
   /* 武器模型：面朝 fx/fy 方向 */
   drawGun(p.weapon||'pistol',x,y,Math.atan2(p.fy||0,p.fx||0),isMe);
+  /* 皮肤特效（外观装饰，不影响判定） */
+  if(skn&&p.alive){
+    const now2=Date.now();
+    if(skn.fx==='flame'){
+      if(Math.random()<.25)burst(x,y-4,'#ff8c3b',1,50);
+    }else if(skn.fx==='frost'){
+      ctx.strokeStyle='rgba(107,197,255,.55)';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(x,y,PLAYER_R+5,now2/300,now2/300+6.28);ctx.stroke();
+    }else if(skn.fx==='shadow'){
+      ctx.fillStyle='rgba(155,93,229,.35)';
+      ctx.beginPath();ctx.arc(x-2,y+3,PLAYER_R+2,0,6.28);ctx.fill();
+    }else if(skn.fx==='mecha'){
+      ctx.strokeStyle='rgba(103,145,163,.9)';ctx.lineWidth=1.6;
+      ctx.beginPath();ctx.arc(x,y,PLAYER_R+2.5,0,6.28);ctx.stroke();
+      ctx.strokeStyle='rgba(120,200,255,.9)';
+      ctx.beginPath();ctx.moveTo(x-PLAYER_R*.7,y+3);ctx.lineTo(x,y-PLAYER_R*.3);ctx.lineTo(x+PLAYER_R*.7,y+3);ctx.stroke();
+    }else if(skn.fx==='gold'){
+      ctx.strokeStyle='rgba(255,215,0,'+(0.55+Math.sin(now2/160)*0.35)+')';ctx.lineWidth=2.2;
+      ctx.beginPath();ctx.arc(x,y,PLAYER_R+6,0,6.28);ctx.stroke();
+      ctx.fillStyle='rgba(255,215,0,.7)';ctx.beginPath();ctx.arc(x+PLAYER_R+2,y-PLAYER_R-1,1.6,0,6.28);ctx.fill();
+      ctx.beginPath();ctx.arc(x-PLAYER_R-3,y+PLAYER_R*.5,1.3,0,6.28);ctx.fill();
+    }
+  }
   ctx.globalAlpha=1;
 }
 
@@ -3271,6 +3389,16 @@ function drawScene(ts){
   ctx.restore();
   /* 自己画在屏幕正中心（撤离后画半透明幽灵） */
   if(me)drawMyself(ts);
+  /* ===== 昼夜循环（普通模式：白天→黄昏→夜晚→黎明，氛围遮罩；暗夜模式固定全暗） ===== */
+  if(!isNightMode()&&me&&roundStartAt){
+    const el=Math.min(1,(Date.now()-roundStartAt)/900000);
+    let tint='rgba(0,0,0,0)';
+    if(el<0.22){tint='rgba(0,0,0,0)';}
+    else if(el<0.40){const k=(el-0.22)/0.18;tint='rgba(90,60,160,'+(0.06+k*0.24)+')';}
+    else if(el<0.72){const k=Math.min(1,(el-0.40)/0.08);tint='rgba(6,10,30,'+(0.30+k*0.40)+')';}
+    else if(el<0.84){const k=Math.min(1,(el-0.72)/0.12);tint='rgba(60,90,200,'+(0.60-k*0.4)+')';}
+    if(tint!=='rgba(0,0,0,0)'){ctx.fillStyle=tint;ctx.fillRect(0,0,W,H);}
+  }
   /* ===== 暗夜/强化暗夜视野 ===== */
   if(isNightMode()&&me){
     if(hasNVG()){
@@ -3333,6 +3461,27 @@ function drawScene(ts){
     ctx.strokeStyle='rgba(255,210,94,.7)';ctx.beginPath();ctx.arc(sx,sy-4,10+pu,0,6.28);ctx.stroke();
     ctx.fillStyle='#fff';ctx.font='bold 11px "PingFang SC",sans-serif';ctx.textAlign='center';
     ctx.fillText(s.by||'',sx,sy+24);
+  }
+  /* 空投箱：金色发光补给箱 + 开启进度环 */
+  for(const d of drops){
+    if(d.opened)continue;
+    const sx=d.x-camX,sy=d.y-camY;
+    if(sx<-60||sx>W+60||sy<-60||sy>H+60)continue;
+    const pul=3+Math.sin(nowS/150+d.x)*2;
+    ctx.save();
+    ctx.strokeStyle='rgba(255,215,90,'+(0.25+Math.abs(Math.sin(nowS/180))*0.3)+')';
+    ctx.lineWidth=2;ctx.beginPath();ctx.arc(sx,sy-10,18+pul,0,6.28);ctx.stroke();
+    ctx.fillStyle='#8a6a2f';ctx.strokeStyle='#5c4418';ctx.lineWidth=2;
+    roundRect(ctx,sx-14,sy-20,28,22,4);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#ffd25e';ctx.font='bold 16px "PingFang SC",sans-serif';ctx.textAlign='center';
+    ctx.fillText('📦',sx,sy-24);
+    if(d.opening){
+      const prog=Math.min(1,(Date.now()-d.openStart)/1200);
+      ctx.strokeStyle='#ffd25e';ctx.lineWidth=3.5;
+      ctx.beginPath();ctx.arc(sx,sy+16,9,0,6.28);ctx.stroke();
+      ctx.strokeStyle='#fff';ctx.beginPath();ctx.arc(sx,sy+16,9,-1.57,-1.57+prog*6.28);ctx.stroke();
+    }
+    ctx.restore();
   }
   /* 击杀/连杀横幅（顶部中央，渐入渐出） */
   if(bannerMsg&&ts<bannerUntil){
@@ -3478,6 +3627,12 @@ function drawMinimap(){
     if(s.until<Date.now())continue;
     ctx.fillStyle='#ffd25e';ctx.beginPath();
     ctx.moveTo(x+s.x*k,y+s.y*k-3.5);ctx.lineTo(x+s.x*k-3,y+s.y*k+2.5);ctx.lineTo(x+s.x*k+3,y+s.y*k+2.5);ctx.closePath();ctx.fill();
+  }
+  /* 空投箱（小地图：金箱点） */
+  for(const d of drops){
+    if(d.opened)continue;
+    ctx.fillStyle='#ffb300';ctx.fillRect(x+d.x*k-2,y+d.y*k-2,4,4);
+    ctx.strokeStyle='rgba(255,179,0,.5)';ctx.strokeRect(x+d.x*k-4,y+d.y*k-4,8,8);
   }
   /* 视野框 */
   ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=1;
@@ -3693,6 +3848,20 @@ function loop(ts){
   const dt=Math.min(.05,((ts-lastT)/1000)||.016);
   lastT=ts;
   if(me&&inGame){
+    /* 空投：房主开局 60s 后每 120~180s 掉一个（最多3个）；所有人靠近自动开启 1.2s */
+    if(isHost&&roundStartAt){
+      const el=Date.now()-roundStartAt;
+      if(el>60000&&dropTimer===0)dropTimer=Date.now()+120000+Math.random()*60000;
+      if(dropTimer>0&&Date.now()>=dropTimer){spawnDrop();dropTimer=Date.now()+120000+Math.random()*60000;}
+    }
+    drops=drops.filter(d=>d.until>Date.now());
+    for(const d of drops){
+      if(d.opened)continue;
+      if(Math.hypot(me.x-d.x,me.y-d.y)<60&&me.alive&&!me.extracted){
+        if(!d.opening){d.opening=true;d.openStart=Date.now();}
+        if(Date.now()-d.openStart>=1200){openDrop(d);}
+      }else if(d.opening){d.opening=false;}
+    }
     /* 换弹完成检测 */
     if(reloadUntil>0&&performance.now()>=reloadUntil)finishReload();
     /* 环境音效：附近玩家的脚步声（低频，冷却） */
@@ -3724,6 +3893,18 @@ function loop(ts){
       movePlayer(me,me.fx*spd*dt,me.fy*spd*dt);
     }
     if(me.alive){
+      /* 金币磁吸：近距离金币/宝石自动飞向玩家（更爽的拾取体验） */
+      const MAG=110;
+      for(const it of items){
+        if(it.taken)continue;
+        const isMagnet=it.kind==='coin'||it.kind==='gem'||it.kind==='diamond'||it.kind==='crown'||it.kind==='bag';
+        if(!isMagnet)continue;
+        const dx=me.x-it.x,dy=me.y-it.y,dd=Math.hypot(dx,dy);
+        if(dd<MAG&&dd>1){
+          const step=Math.min(dd,420*dt*(0.3+0.7*(1-dd/MAG)));
+          it.x+=dx/dd*step;it.y+=dy/dd*step;
+        }
+      }
       const got=tryCollect(me);
       if(got!==null){
         if(isHost)broadcastItems();
@@ -3925,6 +4106,21 @@ function refreshProfile(){
   $('stDeaths').textContent=stats.deaths;
   const gN=parseInt(localStorage.getItem('dadi_golds_'+(myPid||'guest'))||'0')||0;
   $('stGolds').textContent=gN;
+  /* 荣誉徽章：达成点亮，未达成灰色 */
+  const badges=[
+    {n:'撤离先锋',ic:'🚁',got:stats.extracts>=1,desc:'首次成功撤离'},
+    {n:'百战老兵',ic:'⚔️',got:stats.games>=100,desc:'累计100局'},
+    {n:'十杀猎手',ic:'🎯',got:stats.kills>=10,desc:'累计10击杀'},
+    {n:'百杀屠夫',ic:'💀',got:stats.kills>=100,desc:'累计100击杀'},
+    {n:'千币富豪',ic:'💰',got:stats.coins>=1000,desc:'总收入1000'},
+    {n:'万币财神',ic:'👑',got:stats.coins>=10000,desc:'总收入10000'},
+    {n:'大金收藏家',ic:'🏆',got:gN>=1,desc:'收藏1枚大金'},
+    {n:'金库之主',ic:'💎',got:gN>=10,desc:'收藏10枚大金'},
+    {n:'单局之王',ic:'🌟',got:(stats.best||0)>=2000,desc:'单局收入2000'}
+  ];
+  $('badgeRow').innerHTML=badges.map(b=>
+    '<div title="'+b.desc+'" style="opacity:'+(b.got?1:.28)+';filter:'+(b.got?'drop-shadow(0 0 6px rgba(255,210,94,.5))':'grayscale(1)')+';border:1px solid '+(b.got?'#ffd25e':'#555')+';border-radius:9px;padding:4px 8px;font-size:12px;color:'+(b.got?'#ffd25e':'#888')+';">'+b.ic+' '+b.n+'</div>'
+  ).join('');
 }
 
 $('nick').value='玩家'+Math.floor(10+Math.random()*90);
@@ -3971,7 +4167,7 @@ function hallRender(){
   if(!box)return;
   const now=Date.now();
   for(const [code,r] of Array.from(hallRooms)){ if(now-r.last>16000)hallRooms.delete(code); }
-  const list=[...hallRooms.values()].filter(r=>r.room!==roomCode&&!hallClosed.has(r.room)).sort((a,b)=>b.last-a.last);
+  const list=[...hallRooms.values()].filter(r=>r.room!==roomCode&&!hallClosed.has(r.room)&&(hallFilter==='all'||r.mode===hallFilter)).sort((a,b)=>b.last-a.last);
   const hb=$('hallBox');if(hb)hb.classList.toggle('has-room',list.length>0);
   if(st)st.textContent=list.length?(list.length+' 个房间'):(hallOnline?'暂无房间':'连接中…');
   if(!list.length){
@@ -3988,11 +4184,19 @@ function hallRender(){
       +'<div class="hi-bot"><span class="hi-code">房间 '+r.room+'</span><span><span class="hall-pulse"></span>'+(r.n||1)+' 人在线 · 点击加入</span></div>'
       +'</button>';
   }).join('');
+  /* 筛选按钮高亮当前项 */
+  document.querySelectorAll('#hallFilter .hf-btn').forEach(b=>{
+    b.style.background=b.dataset.f===hallFilter?'rgba(255,255,255,.16)':'transparent';
+    b.style.color=b.dataset.f===hallFilter?'var(--gold)':'#ccc';
+  });
 }
 function hallStart(){
   if(hallES){try{hallES.close();}catch(e){}hallES=null;}
   if(hallTimer)clearInterval(hallTimer);
   hallRooms=new Map();hallOnline=false;
+  document.querySelectorAll('#hallFilter .hf-btn').forEach(b=>{
+    b.onclick=()=>{hallFilter=b.dataset.f;renderHall();};
+  });
   const box=$('hallList');if(box)box.innerHTML='<div class="hall-empty">正在获取在线房间…</div>';
   try{
     hallES=new EventSource('https://ntfy.sh/'+HALL_TOPIC+'/sse?since=8s');
