@@ -3849,8 +3849,8 @@ function loop(ts){
   lastT=ts;
   if(me&&inGame){
     /* 空投：房主开局 60s 后每 120~180s 掉一个（最多3个）；所有人靠近自动开启 1.2s */
-    if(isHost&&roundStartAt){
-      const el=Date.now()-roundStartAt;
+    if(isHost&&roundEndAt){
+      const el=Math.max(0,ROUND_MS-(roundEndAt-Date.now()));
       if(el>60000&&dropTimer===0)dropTimer=Date.now()+120000+Math.random()*60000;
       if(dropTimer>0&&Date.now()>=dropTimer){spawnDrop();dropTimer=Date.now()+120000+Math.random()*60000;}
     }
