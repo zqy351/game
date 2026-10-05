@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>大地图探险 v10.18 · 撤离模式</title>
+<title>大地图探险 v10.21 · 撤离模式</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233a271c'/%3E%3Cpath d='M8 22 L16 8 L24 22 Z' fill='%23d99a5b'/%3E%3Ccircle cx='16' cy='20' r='3' fill='%23ffd25e'/%3E%3C/svg%3E" />
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -1205,7 +1205,7 @@ function drawParts(){
 let bullets=[];
 let ebullets=[]; /* 怪物弹丸（客户端纯视觉，伤害由房主权威结算） */
 function spawnBulletVisual(x,y,vx,vy,color){
-  bullets.push({x,y,vx,vy,life:1.8,color});
+  bullets.push({x,y,vx,vy,life:1.8,color,grace:0.1});
 }
 
 /* ============ 音效 ============ */
@@ -2587,13 +2587,13 @@ function aimDir(){
   if(!me)return {dx:1,dy:0};
   if(aimJoy.active&&(aimJoy.dx||aimJoy.dy)){
     const l=Math.hypot(aimJoy.dx,aimJoy.dy);
-    if(l>.15)return {dx:aimJoy.dx/l,dy:aimJoy.dy/l};
+    if(l>.15&&isFinite(l))return {dx:aimJoy.dx/l,dy:aimJoy.dy/l};
   }
   if(mouseX||mouseY){
     const wx=camX+mouseX, wy=camY+mouseY;
     const dx=wx-me.x, dy=wy-me.y;
     const l=Math.hypot(dx,dy);
-    if(l>6)return {dx:dx/l,dy:dy/l};
+    if(l>6&&isFinite(l))return {dx:dx/l,dy:dy/l};
   }
   /* 最近敌人 */
   let best=null,bd=900;
@@ -2602,8 +2602,8 @@ function aimDir(){
     const d=Math.hypot(p.x-me.x,p.y-me.y);
     if(d<bd){bd=d;best=p;}
   }
-  if(best){const dx=best.x-me.x,dy=best.y-me.y,l=Math.hypot(dx,dy);return {dx:dx/l,dy:dy/l};}
-  if(me.fx||me.fy)return {dx:me.fx,dy:me.fy};
+  if(best){const dx=best.x-me.x,dy=best.y-me.y,l=Math.hypot(dx,dy);if(isFinite(l)&&l>0.01)return {dx:dx/l,dy:dy/l};}
+  if(me.fx||me.fy)return {dx:isFinite(me.fx)?me.fx:1,dy:isFinite(me.fy)?me.fy:0};
   return {dx:1,dy:0};
 }
 
@@ -3484,6 +3484,7 @@ function drawScene(ts){
     }
   }
   /* ===== 弹道绘制（放在遮罩/滤镜之后：任何模式弹道永远清晰可见） ===== */
+  ctx.save();ctx.translate(-camX,-camY);
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];
     ctx.globalAlpha=Math.max(0,b.life/1.8);
@@ -3500,7 +3501,7 @@ function drawScene(ts){
     ctx.strokeStyle='rgba(230,170,255,.9)';ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(b.x-b.vx*.05,b.y-b.vy*.05);ctx.lineTo(b.x,b.y);ctx.stroke();
   }
-  ctx.globalAlpha=1;
+  ctx.restore();ctx.globalAlpha=1;
   /* 枪声方位红闪（屏幕边缘，朝开枪者方向） */
   if(shotFlash.until>ts&&me){
     const left=(shotFlash.until-ts)/260;
@@ -3779,6 +3780,7 @@ function tryFire(){
   ammo[me.weapon]=(ammo[me.weapon]||g.mag)-1;
   lastShotAt=now;
   const a=aimDir();
+  if(!isFinite(a.dx)||!isFinite(a.dy)||(a.dx===0&&a.dy===0)){a.dx=1;a.dy=0;}
   sfx.shoot(me.weapon);
   shake=Math.max(shake,g.pellets>1?5:3);
   /* 枪口坐标：从角色中心沿瞄准方向偏移到枪口位置 */
@@ -3807,7 +3809,7 @@ function fireHostBullets(p,dx,dy){
   for(let i=0;i<g.pellets;i++){
     const a=ang0+(Math.random()-.5)*2*g.spread;
     hostBullets.push({x:mx,y:my,vx:Math.cos(a)*g.speed,vy:Math.sin(a)*g.speed,
-      dmg:Math.round(g.dmg*(p.dmgMul||1)),owner:p.id,color:g.color,life:g.range/g.speed+0.05});
+      dmg:Math.round(g.dmg*(p.dmgMul||1)),owner:p.id,color:g.color,life:g.range/g.speed+0.05,grace:0.1});
   }
   if(hostBullets.length>120)hostBullets.splice(0,hostBullets.length-120);
 }
@@ -3900,8 +3902,8 @@ function stepHostBullets(dt){
     let dead=false;
     for(let s=0;s<steps&&!dead;s++){
       b.x+=b.vx*dt/steps;b.y+=b.vy*dt/steps;
-      /* 撞墙/水外障碍 */
-      if(isSolid(Math.floor(b.x/TILE),Math.floor(b.y/TILE))){
+      /* 撞墙/水外障碍（出生免检期 grace 内不判墙，贴脸/室内也能打出伤害） */
+      if(b.grace<=0&&isSolid(Math.floor(b.x/TILE),Math.floor(b.y/TILE))){
         broadcast({type:'fx',x:Math.round(b.x),y:Math.round(b.y),color:b.color});
         burst(b.x,b.y,'#ffd25e',5,90);
         dead=true;break;
@@ -3934,6 +3936,7 @@ function stepHostBullets(dt){
       }
     }
     b.life-=dt;
+    if(b.grace>0)b.grace-=dt;
     if(dead||b.life<=0)hostBullets.splice(i,1);
   }
 }
@@ -4039,6 +4042,7 @@ function loop(ts){
     for(let i=bullets.length-1;i>=0;i--){
       const b=bullets[i];
       b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;
+      if(b.grace>0){b.grace-=dt;continue;} /* 出生免检期：贴墙/室内开火子弹也能先飞出枪口 */
       if(isSolid(Math.floor(b.x/TILE),Math.floor(b.y/TILE))){
         burst(b.x,b.y,b.color||'#ffd25e',3,60);
         bullets.splice(i,1);continue;
@@ -4585,10 +4589,14 @@ $('segPerf').addEventListener('click',()=>{ecoMode=false;localStorage.setItem('d
 $('segEco').addEventListener('click',()=>{ecoMode=true;localStorage.setItem('dadi_eco','1');refreshPerf();uiLog('已切换省电模式（特效关闭）');});
 $('btnScreenShake').addEventListener('click',()=>{shakeEnabled=!shakeEnabled;localStorage.setItem('dadi_shake',shakeEnabled?'1':'0');refreshPerf();uiLog('震屏特效：'+(shakeEnabled?'开':'关'));});
 /* 省电模式生效点：粒子减半、震屏关闭、模糊关闭 */
-const _burst0=burst;
+/* 直接内联完整实现（不引用外部函数，避免提升/作用域陷阱） */
 function burst(x,y,color,n,spd){
-  if(ecoMode&&n>4){_burst0(x,y,color,Math.max(1,Math.floor(n*0.4)),spd);return;}
-  _burst0(x,y,color,n,spd);
+  if(parts.length>220)parts.splice(0,parts.length-220);
+  const cnt=(ecoMode&&n>4)?Math.max(1,Math.floor(n*0.4)):n;
+  for(let i=0;i<cnt;i++){
+    const a=Math.random()*6.28,s=(Math.random()*.6+.4)*spd;
+    parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,decay:.02+Math.random()*.02,color,size:2+Math.random()*3});
+  }
 }
 function addShake(v){if(shakeEnabled&&!ecoMode)shake=Math.max(shake,v);}
 
