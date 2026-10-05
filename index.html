@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>大地图探险 v10 · 撤离模式</title>
+<title>大地图探险 v10.11 · 撤离模式</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233a271c'/%3E%3Cpath d='M8 22 L16 8 L24 22 Z' fill='%23d99a5b'/%3E%3Ccircle cx='16' cy='20' r='3' fill='%23ffd25e'/%3E%3C/svg%3E" />
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -3390,8 +3390,8 @@ function drawScene(ts){
   /* 自己画在屏幕正中心（撤离后画半透明幽灵） */
   if(me)drawMyself(ts);
   /* ===== 昼夜循环（普通模式：白天→黄昏→夜晚→黎明，氛围遮罩；暗夜模式固定全暗） ===== */
-  if(!isNightMode()&&me&&roundStartAt){
-    const el=Math.min(1,(Date.now()-roundStartAt)/900000);
+  if(!isNightMode()&&me&&roundEndAt){
+    const el=Math.min(1,Math.max(0,(ROUND_MS-(roundEndAt-Date.now()))/ROUND_MS));
     let tint='rgba(0,0,0,0)';
     if(el<0.22){tint='rgba(0,0,0,0)';}
     else if(el<0.40){const k=(el-0.22)/0.18;tint='rgba(90,60,160,'+(0.06+k*0.24)+')';}
