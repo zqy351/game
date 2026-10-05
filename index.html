@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>大地图探险 v10.16 · 撤离模式</title>
+<title>大地图探险 v10.17 · 撤离模式</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233a271c'/%3E%3Cpath d='M8 22 L16 8 L24 22 Z' fill='%23d99a5b'/%3E%3Ccircle cx='16' cy='20' r='3' fill='%23ffd25e'/%3E%3C/svg%3E" />
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -73,15 +73,17 @@ input::placeholder{ color:#9a7b5e; }
 /* ===== 个人主页浮层 ===== */
 #profile{ position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center; padding:16px;
   background:rgba(20,12,8,.82); backdrop-filter:blur(3px); }
-#profile .card{ width:min(380px,100%); background:var(--panel2); border:1px solid var(--line); border-radius:18px; padding:20px 18px; max-height:92vh; overflow-y:auto; }
-#profile h2{ font-size:19px; text-align:center; color:#fff; letter-spacing:3px; margin-bottom:4px; }
-#profile .pname{ text-align:center; color:var(--gold); font-size:13px; margin-bottom:12px; }
-.stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
-.stat{ background:rgba(255,235,205,.06); border:1px solid var(--line); border-radius:10px; padding:9px 8px; text-align:center; }
-.stat .v{ font-size:19px; font-weight:800; color:var(--gold); }
-.stat .k{ font-size:10px; color:var(--muted); margin-top:2px; }
-#profile .row{ display:flex; gap:10px; margin-top:14px; }
-#profile .row button{ flex:1; padding:10px 0; font-size:14px; }
+#profile .card{ width:min(360px,100%); background:var(--panel2); border:1px solid var(--line); border-radius:18px; padding:18px 16px; max-height:88vh; display:flex; flex-direction:column; }
+#profile h2{ font-size:18px; text-align:center; color:#fff; letter-spacing:3px; margin-bottom:2px; flex-shrink:0; }
+#profile .pname{ text-align:center; color:var(--gold); font-size:12px; margin-bottom:8px; flex-shrink:0; }
+#profile .stat-grid{ overflow-y:auto; flex:1 1 auto; min-height:0; }
+.stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:8px; }
+.stat{ background:rgba(255,235,205,.06); border:1px solid var(--line); border-radius:9px; padding:7px 6px; text-align:center; }
+.stat .v{ font-size:17px; font-weight:800; color:var(--gold); }
+.stat .k{ font-size:10px; color:var(--muted); margin-top:1px; }
+#profile .badgeWrap{ flex-shrink:0; }
+#profile .row{ display:flex; gap:10px; margin-top:10px; flex-shrink:0; }
+#profile .row button{ flex:1; padding:11px 0; font-size:14px; }
 #shop,#inv{ position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center; padding:20px;
   background:rgba(20,12,8,.82); backdrop-filter:blur(3px); }
 #shop .card,#inv .card{ width:min(420px,100%); background:var(--panel2); border:1px solid var(--line); border-radius:18px; padding:26px 24px; }
@@ -122,10 +124,12 @@ input::placeholder{ color:#9a7b5e; }
 #equipHud{ font-size:11px; color:#cfe8d0; display:flex; gap:5px; align-items:center; flex-wrap:wrap; }
 #equipHud .eq-item{ display:inline-flex; align-items:center; gap:2px; background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.18); padding:2px 6px; border-radius:6px; }
 #equipBar{ position:fixed; top:98px; left:12px; z-index:29; display:none; pointer-events:none; max-width:200px; }
-#taskPanel{ position:fixed; top:98px; left:220px; z-index:29; display:none; pointer-events:none; background:rgba(10,6,4,.62); border:1px solid rgba(255,210,94,.28); border-radius:10px; padding:6px 10px; font-size:11px; color:#f5e8c8; max-width:200px; }
-#taskPanel .tk{ display:flex; justify-content:space-between; gap:8px; line-height:1.7; }
+#taskPanel{ position:fixed; top:132px; left:10px; z-index:29; display:none; pointer-events:auto; cursor:pointer; user-select:none; background:rgba(10,6,4,.55); border:1px solid rgba(255,210,94,.22); border-radius:8px; padding:4px 8px; font-size:10px; color:#f5e8c8; max-width:172px; line-height:1.5; }
+#taskPanel .tk-title{ color:#ffd25e; font-weight:700; }
+#taskPanel .tk{ display:flex; justify-content:space-between; gap:6px; }
 #taskPanel .tk.done{ color:#8fdc9a; text-decoration:line-through; }
 #taskPanel b{ color:var(--gold); font-weight:700; }
+#taskPanel.mini .tk{ display:none; }
 
 #board{ position:fixed; top:12px; right:14px; z-index:30; width:150px; display:none; background:rgba(36,22,14,.82);
   border:1px solid var(--line); border-radius:12px; padding:9px 11px; font-size:12px; pointer-events:none; }
@@ -539,8 +543,8 @@ let hallFilter='all'; /* 大厅模式筛选：all/normal/night/nightmare */
       <div class="stat"><div class="v" id="stDeaths">0</div><div class="k">总死亡</div></div>
       <div class="stat"><div class="v" id="stGolds" style="color:#ffd700">0</div><div class="k">收藏大金</div></div>
     </div>
-    <div style="margin:10px 0 4px;font-size:13px;color:var(--gold);text-align:center;">— 荣誉徽章 —</div>
-    <div id="badgeRow" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;min-height:40px;"></div>
+    <div class="badgeWrap" style="margin:6px 0 0;font-size:12px;color:var(--gold);text-align:center;">— 荣誉徽章 —</div>
+    <div id="badgeRow" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;min-height:32px;"></div>
     <div class="row">
       <button class="btn secondary" id="btnCloseProfile">关闭</button>
       <button class="btn secondary" id="btnResetStats">清空战绩</button>
@@ -2088,6 +2092,10 @@ function cleanupPeer(){
 function resetToMenu(){
   cleanupPeer();joining=false;
   endTapAim();
+  /* 彻底重置射击与弹药状态，防止换局后残留导致打不出子弹 */
+  mouseDown=false;fireHeld=false;mouseX=0;mouseY=0;
+  aimJoy.active=false;aimJoy.dx=1;aimJoy.dy=0;shootJoyReset&&shootJoyReset();
+  lastShotAt=0;reloadUntil=0;ammo={};hostBullets.length=0;
   window.__extractedDone=false;
   if(window.__leaveBtn)window.__leaveBtn.style.display='none';
   stats=loadStats();
@@ -3204,6 +3212,8 @@ function drawMonster(m,ts){
 function drawPlayer(p,isMe,ts){
   const now=Date.now();
   if(!p.alive)return;
+  /* 房区内完全隐身（与草丛一致）：非本人进入房区后其他人看不到自己 */
+  if(!isMe&&inRoom(p.x,p.y)!==-1)return;
   const bob=Math.abs(Math.sin(ts/220+p.phase))*2;
   const x=p.rx!==undefined?p.rx:p.x,y=(p.ry!==undefined?p.ry:p.y)-2+bob;
   const sy=(p.ry!==undefined?p.ry:p.y)+PLAYER_R*.55;
@@ -4101,13 +4111,14 @@ function loop(ts){
       if(tp){
         if(tasks.length){
           tp.style.display='block';
-          tp.innerHTML='<div style="color:#ffd25e;font-weight:700;margin-bottom:2px">📋 本局任务</div>'+tasks.map(t=>{
+          tp.innerHTML='<div class="tk-title">📋 本局任务'+(tp.classList.contains('mini')?' ▸':' ▾')+'</div>'+tasks.map(t=>{
             const prog=taskProg[t.kind]||0, done=taskRewarded[t.id];
             const show=t.kind==='survive'?(Math.floor(Math.min(prog,t.target)/60)+'/'+Math.floor(t.target/60)+'分'):(Math.min(prog,t.target)+'/'+t.target);
             return '<div class="tk'+(done?' done':'')+'"><span>'+escapeHtml(t.txt)+'</span><b>'+(done?'✔':'')+show+'</b></div>';
           }).join('');
         }else tp.style.display='none';
       }
+      if(tp&&!tp._b){tp._b=true;tp.addEventListener('click',()=>tp.classList.toggle('mini'));}
       const items=[];
       const eqSrc=myEquip||{}; /* 本局临时穿戴（拾取实时写入），撤离成功才持久化 */
       const addEq=(slot,icon)=>{
@@ -4415,8 +4426,11 @@ function sendChatMsg(text){
   text=String(text||'').trim().slice(0,40);
   if(!text||!inGame)return;
   const isMe=me&&me.alive;
-  if(isHost){broadcast({type:'chat',by:myName,text});uiLog('<span style="color:#9ce6ff">'+escapeHtml(myName)+'：</span>'+escapeHtml(text));}
-  else if(hostConn&&hostConn.open){hostConn.send({type:'chat',by:myName,text});uiLog('<span style="color:#9ce6ff">'+escapeHtml(myName)+'：</span>'+escapeHtml(text));}
+  try{
+    if(isHost){broadcast({type:'chat',by:myName,text});uiLog('<span style="color:#9ce6ff">'+escapeHtml(myName)+'：</span>'+escapeHtml(text));}
+    else if(hostConn&&hostConn.open){hostConn.send({type:'chat',by:myName,text});uiLog('<span style="color:#9ce6ff">'+escapeHtml(myName)+'：</span>'+escapeHtml(text));}
+    else toastTop('⚠️ 网络不稳，消息未送达');
+  }catch(e){toastTop('⚠️ 消息发送失败，请重试');}
 }
 $('chatOpenBtn').addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();const i=$('chatInput');i.style.display=i.style.display==='block'?'none':'block';if(i.style.display==='block')i.focus();},{passive:false});
 $('chatOpenBtn').addEventListener('click',e=>{e.stopPropagation();const i=$('chatInput');i.style.display=i.style.display==='block'?'none':'block';if(i.style.display==='block')i.focus();});
