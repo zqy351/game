@@ -554,7 +554,7 @@ input::placeholder{ color:#9a7b5e; }
 <div id="equipBar"><span id="equipHud"></span></div>
 <div id="timer">15:00</div>
 <div id="coinsHud">本局 <b id="myCoins">0</b> 金 · <b id="myKills">0</b> 杀</div>
-<div id="weaponHud"><b id="wpnName">手枪</b><span id="equipHud"></span></div>
+<div id="weaponHud"><b id="wpnName">手枪</b> <span id="wpnAmmo" style="color:#8fce7a;font-size:12px;"></span><span id="equipHud"></span></div>
 <div id="board"></div>
 <div id="sysLog"></div>
 <div id="extractBar">
@@ -570,6 +570,7 @@ input::placeholder{ color:#9a7b5e; }
 <div id="sprintBtn" style="position:fixed;right:110px;bottom:90px;z-index:31;width:56px;height:56px;border-radius:50%;background:rgba(36,22,14,.7);border:1px solid var(--line);color:#fff;font-size:13px;display:none;align-items:center;justify-content:center;">疾跑</div>
 <div id="joy"><div id="joyKnob"></div></div>
 <div id="exArrow">▲</div>
+<div id="signalBtn" style="position:fixed;right:158px;bottom:192px;z-index:45;width:46px;height:46px;border-radius:50%;background:rgba(36,22,14,.85);border:1px solid rgba(255,210,94,.5);color:#ffd25e;font-size:20px;display:none;align-items:center;justify-content:center;pointer-events:auto;touch-action:manipulation;">▲</div>
 <div id="emoteBar">
   <button data-ph="冲鸭！">冲鸭！</button>
   <button data-ph="溜了溜了">溜了溜了</button>
@@ -806,11 +807,13 @@ const BIOME_SPEED={0:1,1:.82,4:.92,5:.88};
 const SOLID=new Set([2,3,6,8]); /* 8=房区墙壁 */
 /* 枪械 */
 const GUNS={
-  pistol:  {name:'手枪',  dmg:20, range:1800, cd:380, speed:950, spread:.03,  pellets:1, color:'#ffd25e'},
-  smg:     {name:'冲锋枪',dmg:9,  range:1600, cd:110, speed:1050,spread:.06,  pellets:1, color:'#7dd3fc'},
-  shotgun: {name:'霰弹枪',dmg:8,  range:1300, cd:900, speed:850, spread:.20,  pellets:5, color:'#fb923c'},
-  rifle:   {name:'步枪',  dmg:34, range:2400, cd:700, speed:1350,spread:.015, pellets:1, color:'#f87171'},
-  sniper:  {name:'狙击枪',dmg:60, range:3200,cd:1800,speed:1600,spread:.008, pellets:1, color:'#f0abfc'}
+  pistol:  {name:'手枪',  dmg:20, range:1800, cd:380, speed:950, spread:.03,  pellets:1, color:'#ffd25e', mag:12},
+  smg:     {name:'冲锋枪',dmg:9,  range:1600, cd:110, speed:1050,spread:.06,  pellets:1, color:'#7dd3fc', mag:40},
+  shotgun: {name:'霰弹枪',dmg:8,  range:1300, cd:900, speed:850, spread:.20,  pellets:5, color:'#fb923c', mag:6},
+  rifle:   {name:'步枪',  dmg:34, range:2400, cd:700, speed:1350,spread:.015, pellets:1, color:'#f87171', mag:25},
+  sniper:  {name:'狙击枪',dmg:60, range:3200,cd:1800,speed:1600,spread:.008, pellets:1, color:'#f0abfc', mag:5},
+  minigun: {name:'加特林',dmg:7,  range:1500, cd:70,  speed:1150,spread:.11,  pellets:1, color:'#ffb86c', mag:90},
+  dmr:     {name:'连狙',  dmg:46, range:2800, cd:430, speed:1500,spread:.012, pellets:1, color:'#b8f2a0', mag:12}
 };
 
 /* ============ 工具 ============ */
@@ -1191,7 +1194,11 @@ const sfx={
   die(){beep(400,.4,'sawtooth',.12,80);},
   extract(){beep(660,.15,'triangle',.12);setTimeout(()=>beep(880,.15,'triangle',.12),130);setTimeout(()=>beep(1320,.25,'triangle',.12),260);},
   join(){beep(520,.1,'sine',.08);setTimeout(()=>beep(780,.12,'sine',.08),95);},
-  pop(){beep(520,.06,'sine',.07,720);}
+  pop(){beep(520,.06,'sine',.07,720);},
+  step(){beep(160,.045,'square',.03,240);},
+  monster(){beep(95,.22,'sawtooth',.09,55);},
+  win(){[660,880,1100,1320].forEach((f,i)=>setTimeout(()=>beep(f,.14,'triangle',.11),i*110));},
+  alert(){beep(220,.14,'square',.09,180);}
 };
 addEventListener('pointerdown',initAudio,{once:true});
 addEventListener('keydown',initAudio,{once:true});
@@ -1264,8 +1271,14 @@ const SHOP_ITEMS=[
    tag:'速射神器',tier:'普通',dmg:6,range:'中',rate:'极快',durability:60,
    ds:'伤害 6 · 射速极快 · 弹匣 40',stats:[['伤害',6],['射程','中'],['射速','极快'],['耐久',60]]},
   {id:'sniper',nm:'狙击枪 AWM',price:500,slot:'weapon',weapon:'sniper',icon:'🔫',
-   tag:'一枪致命',tier:'史诗',dmg:45,range:'远',rate:'慢',durability:90,
-   ds:'伤害 45 · 超远距离 · 一发入魂',stats:[['伤害',45],['射程','远'],['射速','慢'],['耐久',90]]},
+   tag:'一枪致命',tier:'史诗',dmg:60,range:'远',rate:'慢',durability:90,
+   ds:'伤害 60 · 超远距离 · 一发入魂',stats:[['伤害',60],['射程','远'],['射速','慢'],['耐久',90]]},
+  {id:'minigun',nm:'加特林 M134',price:680,slot:'weapon',weapon:'minigun',icon:'🔫',
+   tag:'火力风暴',tier:'史诗',dmg:7,range:'中',rate:'极快',durability:95,
+   ds:'伤害 7 · 射速极快 · 弹匣 90 · 略飘',stats:[['伤害',7],['射程','中'],['射速','极快'],['耐久',95]]},
+  {id:'dmr',nm:'连狙 DMR',price:560,slot:'weapon',weapon:'dmr',icon:'🔫',
+   tag:'精准连发',tier:'稀有',dmg:46,range:'远',rate:'中',durability:85,
+   ds:'伤害 46 · 远距离连发 · 精准',stats:[['伤害',46],['射程','远'],['射速','中'],['耐久',85]]},
   /* 防具（槽位 armor/helmet/boots） */
   /* 防弹衣 9 个等级（减伤 10% → 95%） */
   ...[10,20,30,40,50,62,73,84,95].map((pct,i)=>{
@@ -1485,6 +1498,32 @@ function equippedBonuses(){
   return b;
 }
 let extractProg={}; /* 房主：每玩家已撤离秒数 */
+let myKillStreak=0;   /* 连杀计数 */
+let bannerMsg='',bannerColor='#fff',bannerUntil=0,bannerScale=1;
+let shotFlash={dir:0,until:0}; /* 枪声方位红闪：dir=相对角度(弧度)，until=截止 */
+let lastStepSnd=0,lastMonSnd=0;
+function showBanner(txt,color,ms){
+  bannerMsg=txt;bannerColor=color||'#fff';
+  bannerUntil=Date.now()+ms;bannerScale=1;
+}
+/* 信号标记：向自己朝向 180px 处发金色标记（全房可见 8 秒） */
+let signals=[];
+function sendSignal(){
+  if(!me||!me.alive||!inGame)return;
+  const dx=(me.fx||1),dy=(me.fy||0),l=Math.hypot(dx,dy)||1;
+  const sx=me.x+dx/l*180, sy=me.y+dy/l*180;
+  if(isHost){
+    signals.push({x:sx,y:sy,by:myName,until:Date.now()+8000});
+    broadcast({type:'signal',x:sx,y:sy,by:myName});
+  }else if(hostConn&&hostConn.open){
+    hostConn.send({type:'signal',x:sx,y:sy,by:myName});
+    signals.push({x:sx,y:sy,by:myName,until:Date.now()+8000});
+  }
+  sfx.pop();
+}
+$('signalBtn').addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();sendSignal();},{passive:false});
+$('signalBtn').addEventListener('click',e=>{e.stopPropagation();sendSignal();});
+addEventListener('keydown',e=>{if(e.key==='t'||e.key==='T'){if(inGame)sendSignal();}if(e.key==='r'||e.key==='R'){if(inGame&&me&&me.alive)startReload();}});
 function freshPlayer(){const s=spawnPos();const b=equippedBonuses();const p={id:'',name:myName,color:myColor,x:s.x,y:s.y,rx:s.x,ry:s.y,
   score:0,hp:MAX_HP,alive:true,weapon:b.weapon,invulnUntil:0,boostUntil:0,ghostUntil:0,extracted:false,
   fx:0,fy:0,phase:Math.random()*6.28,deadUntil:0,kills:0,armor:b.armor,dmgMul:b.dmgMul,spdMul:b.spdMul,extraArmor:b.extraArmor,
@@ -1573,6 +1612,8 @@ function handleHostMsg(id,msg){
     if(now-(p.lastShot||0)<g.cd*.8)return;
     p.lastShot=now;
     broadcast({type:'shoot',id,w:p.weapon,dx:msg.dx,dy:msg.dy});
+    /* 附带枪声方位（广播开枪者坐标，各端自算相对角度做屏幕边缘红闪） */
+    broadcast({type:'shotDir',id:p.id,sx:p.x,sy:p.y});
     /* 房主权威：生成真实弹道，子弹飞到目标才扣血 */
     fireHostBullets(p,msg.dx,msg.dy);
   }else if(msg.type==='emote'&&players[id]){
@@ -1715,6 +1756,16 @@ function handleHostData(msg){
       floaters.push({x:players[msg.target].x,y:players[msg.target].y-20,text:'-'+msg.dmg,life:1,color:'#ff6b6b'});
     }
     if(msg.from===myPeerId){stats.kills++;saveStats();}
+  }else if(msg.type==='shotDir'){
+    /* 敌方枪声方位提示（广播开枪者坐标，各端自算方向） */
+    if(msg.id!==myPeerId&&me&&me.alive){
+      const d=Math.hypot(msg.sx-me.x,msg.sy-me.y);
+      if(d<1000){
+        shotFlash.dir=Math.atan2(msg.sy-me.y,msg.sx-me.x);
+        shotFlash.until=Date.now()+260;
+        if(d<420)sfx.alert();
+      }
+    }
   }else if(msg.type==='monsterHit'){
     const mm=monsters.find(x=>x.id===msg.id);
     /* 特效严格出现在子弹真实命中点（msg.x/msg.y） */
@@ -1748,6 +1799,24 @@ function handleHostData(msg){
       const k=players[msg.killer]?players[msg.killer].name:'环境';
       uiLog('💀 '+(players[msg.id]?players[msg.id].name:'玩家')+' 被 '+k+' 击杀，掉落 '+msg.bag+' 金币');
     }
+  }else if(msg.type==='kill'){
+    /* 击杀横幅：自己击杀→连杀计数；自己被击杀→清零 */
+    const KN=(msg.kn||'怪物'),DN=msg.dn||'玩家';
+    if(msg.kid===myPeerId){
+      myKillStreak=(myKillStreak||0)+1;
+      const s=myKillStreak;
+      showBanner(s>=3?('🔥 '+s+' 连杀！'+KN+' 被你击杀！')
+        :(s===2?('⚡ 双杀！连击 '+KN)
+        :('💥 击杀 '+KN)),s>=3?'#ffd25e':(s===2?'#ff9e5f':'#fff'),2600);
+      sfx.kill&&sfx.kill();
+    }else if(DN===myName){
+      myKillStreak=0;
+      showBanner('☠️ 你被 '+KN+' 击倒！','#ff8a7a',2400);
+    }else{
+      showBanner(KN+' 击杀了 '+DN,'#e8d9c4',1400);
+    }
+  }else if(msg.type==='signal'){
+    signals.push({x:msg.x,y:msg.y,by:msg.by||'队友',until:Date.now()+8000});
   }else if(msg.type==='respawn'){
     if(msg.id===myPeerId){
       me.x=msg.x;me.y=msg.y;me.hp=MAX_HP;me.alive=true;me.score=0;
@@ -1785,6 +1854,7 @@ function handleHostData(msg){
       me.extracted=true;
       me.alive=false;
       me.ghostUntil=9e15;
+      sfx.win();
       uiLog('撤离成功！+'+msg.coins+' 金币已入账。点左上角"离开房间"回主菜单。');
       if(!window.__leaveBtn){
         const b=document.createElement('button');
@@ -1875,6 +1945,7 @@ function resetToMenu(){
   $('menu').style.display='flex';$('hud').style.display='none';$('hpWrap').style.display='none';$('equipBar').style.display='none';
   $('timer').style.display='none';$('coinsHud').style.display='none';$('weaponHud').style.display='none';
   $('board').style.display='none';$('emoteBar').style.display='none';$('shootJoy').style.display='none';
+  $('signalBtn').style.display='none';
   $('sprintBtn').style.display='none';
   $('medBar').style.display='none';$('medProgress').style.display='none';usingMed=null;
   $('result').style.display='none';$('extractBar').style.display='none';
@@ -1890,6 +1961,7 @@ function showGame(){
   $('menu').style.display='none';$('hud').style.display='flex';$('hpWrap').style.display='block';$('equipBar').style.display='block';
   $('timer').style.display='block';$('coinsHud').style.display='block';$('weaponHud').style.display='block';
   $('board').style.display='block';$('emoteBar').style.display='flex';
+  $('signalBtn').style.display='flex';
   /* 手机端：摇杆模式显示右摇杆；点按瞄准模式隐藏摇杆（直接点屏幕开火） */
   $('shootJoy').style.display=(IS_TOUCH&&shootMode==='stick')?'flex':'none';
   endTapAim();
@@ -2532,7 +2604,7 @@ function tryCollect(p){
           myEquip[SLOT_OF(li)]=it.itemId;
           /* 立即刷新局内加成（护甲/伤害/移速/武器），含 98% 减伤封顶 */
           {const nb=equippedBonuses();
-           if(me){me.armor=nb.armor;me.extraArmor=nb.extraArmor;me.dmgMul=nb.dmgMul;me.spdMul=nb.spdMul;if(li.weapon)me.weapon=nb.weapon;}}
+           if(me){me.armor=nb.armor;me.extraArmor=nb.extraArmor;me.dmgMul=nb.dmgMul;me.spdMul=nb.spdMul;if(li.weapon){me.weapon=nb.weapon;ammo[nb.weapon]=GUNS[nb.weapon]?GUNS[nb.weapon].mag:12;}}}
           toastTop('🎒 捡到装备：'+li.nm+'，已自动穿戴');
           uiLog('装备 '+li.nm+' 已穿戴，撤离成功后可收入仓库');
         }
@@ -2988,7 +3060,7 @@ function drawPlayer(p,isMe,ts){
   if(p.weapon&&p.weapon!=='pistol'){
     ctx.font='10px "PingFang SC",sans-serif';
     ctx.fillStyle='#a8e6ff';
-    ctx.fillText(({shotgun:'霰弹枪',rifle:'步枪',sniper:'狙击枪',smg:'冲锋枪'}[p.weapon]||p.weapon),x,y+28);
+    ctx.fillText(({shotgun:'霰弹枪',rifle:'步枪',sniper:'狙击枪',smg:'冲锋枪',minigun:'加特林',dmr:'连狙'}[p.weapon]||p.weapon),x,y+28);
   }
   if(now<p.boostUntil){
     ctx.strokeStyle='#ffd25e';ctx.globalAlpha=alpha*(.5+Math.sin(ts/80)*.25);ctx.lineWidth=2;
@@ -3012,7 +3084,7 @@ function drawPlayer(p,isMe,ts){
 /* ============ 武器模型 ============ */
 function drawGun(w,x,y,ang,isMe){
   const a=ang===0&&!isMe?0:ang; /* 玩家朝向 */
-  const len=w==='sniper'?30:(w==='rifle'?25:(w==='shotgun'?28:(w==='smg'?19:14)));
+  const len=w==='sniper'?30:(w==='rifle'?25:(w==='shotgun'?28:(w==='smg'?19:(w==='dmr'?30:(w==='minigun'?26:14)))));
   const gx=x+Math.cos(a)*(PLAYER_R+3),gy=y+Math.sin(a)*(PLAYER_R+3);
   ctx.save();
   ctx.translate(gx,gy);
@@ -3024,6 +3096,8 @@ function drawGun(w,x,y,ang,isMe){
   else if(w==='rifle'){bodyGrad.addColorStop(0,'#aab7c0');bodyGrad.addColorStop(.5,'#6d7f8c');bodyGrad.addColorStop(1,'#46525c');}
   else if(w==='shotgun'){bodyGrad.addColorStop(0,'#c97a4a');bodyGrad.addColorStop(.5,'#9c5228');bodyGrad.addColorStop(1,'#6e3414');}
   else if(w==='smg'){bodyGrad.addColorStop(0,'#7ba877');bodyGrad.addColorStop(.5,'#4d7a49');bodyGrad.addColorStop(1,'#33562f');}
+  else if(w==='dmr'){bodyGrad.addColorStop(0,'#a8c9a2');bodyGrad.addColorStop(.5,'#6b8f63');bodyGrad.addColorStop(1,'#3f5c39');}
+  else if(w==='minigun'){bodyGrad.addColorStop(0,'#b5a06a');bodyGrad.addColorStop(.5,'#8a7442');bodyGrad.addColorStop(1,'#5c4c28');}
   else{bodyGrad.addColorStop(0,'#5f6470');bodyGrad.addColorStop(.5,'#3a3e46');bodyGrad.addColorStop(1,'#22252b');}
   /* 枪管下沿 */
   ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=3.2;
@@ -3221,11 +3295,57 @@ function drawScene(ts){
       ctx.beginPath();ctx.arc(W/2,H/2,vR,0,6.28);ctx.stroke();
     }
   }
+  /* 枪声方位红闪（屏幕边缘，朝开枪者方向） */
+  if(shotFlash.until>ts&&me){
+    const left=(shotFlash.until-ts)/260;
+    ctx.save();ctx.globalAlpha=Math.min(.5,left*.5);
+    const cx=W/2,cy=H/2;
+    ctx.fillStyle='#ff4034';
+    const len=Math.min(W,H)*.62;
+    const ex=cx+Math.cos(shotFlash.dir)*len, ey=cy+Math.sin(shotFlash.dir)*len;
+    /* 边缘标记三角 */
+    ctx.beginPath();
+    ctx.moveTo(ex+Math.cos(shotFlash.dir)*16,ey+Math.sin(shotFlash.dir)*16);
+    ctx.lineTo(ex+Math.cos(shotFlash.dir+2.4)*12,ey+Math.sin(shotFlash.dir+2.4)*12);
+    ctx.lineTo(ex+Math.cos(shotFlash.dir-2.4)*12,ey+Math.sin(shotFlash.dir-2.4)*12);
+    ctx.closePath();ctx.fill();
+    /* 边缘淡红色弧光 */
+    const rg=ctx.createRadialGradient(cx,cy,Math.min(W,H)*.25,cx,cy,len);
+    rg.addColorStop(0,'rgba(255,64,52,0)');rg.addColorStop(1,'rgba(255,64,52,.22)');
+    ctx.fillStyle=rg;ctx.fillRect(0,0,W,H);
+    ctx.restore();ctx.globalAlpha=1;
+  }
   /* 撤离后顶部提示 */
   if(me&&me.extracted){
     ctx.fillStyle='rgba(255,210,94,.9)';
     ctx.font='bold 16px "PingFang SC",sans-serif';ctx.textAlign='center';
     ctx.fillText('✓ 已撤离 · 幽灵观战中',W/2,90);
+  }
+  /* 信号标记（世界坐标：金色三角+名字，脉冲） */
+  const nowS=Date.now();
+  signals=signals.filter(s=>s.until>nowS);
+  for(const s of signals){
+    const sx=s.x-camX,sy=s.y-camY;
+    if(sx<-40||sx>W+40||sy<-40||sy>H+40)continue;
+    const pu=2+Math.sin(nowS/180+s.x)*2;
+    ctx.fillStyle='#ffd25e';ctx.beginPath();
+    ctx.moveTo(sx,sy-18-pu);ctx.lineTo(sx-7,sy+8);ctx.lineTo(sx+7,sy+8);ctx.closePath();ctx.fill();
+    ctx.strokeStyle='rgba(255,210,94,.7)';ctx.beginPath();ctx.arc(sx,sy-4,10+pu,0,6.28);ctx.stroke();
+    ctx.fillStyle='#fff';ctx.font='bold 11px "PingFang SC",sans-serif';ctx.textAlign='center';
+    ctx.fillText(s.by||'',sx,sy+24);
+  }
+  /* 击杀/连杀横幅（顶部中央，渐入渐出） */
+  if(bannerMsg&&ts<bannerUntil){
+    const life=(bannerUntil-ts)/1000;
+    const a=Math.min(1,life/0.35,1-(1-life)/0.4);
+    const scale=1+Math.max(0,(bannerUntil-ts-1500)/1000)*0.04;
+    ctx.save();ctx.globalAlpha=Math.max(0,Math.min(1,a));
+    ctx.translate(W/2,120);ctx.scale(scale,scale);
+    ctx.font='bold 20px "PingFang SC",sans-serif';ctx.textAlign='center';
+    ctx.lineWidth=4;ctx.strokeStyle='rgba(20,10,5,.85)';
+    ctx.strokeText(bannerMsg,0,0);
+    ctx.fillStyle=bannerColor;ctx.fillText(bannerMsg,0,0);
+    ctx.restore();ctx.globalAlpha=1;
   }
   drawMinimap();
 }
@@ -3287,6 +3407,16 @@ function drawMinimap(){
     if(it.kind==='diamond'){ctx.fillStyle='#a8e6ff';ctx.fillRect(x+it.x*k-1.5,y+it.y*k-1.5,3,3);}
     else if(it.kind==='crown'){ctx.fillStyle='#ffd700';ctx.beginPath();ctx.arc(x+it.x*k,y+it.y*k,2.5,0,6.28);ctx.fill();}
     else if(it.kind==='bag'){ctx.fillStyle='#f0c068';ctx.beginPath();ctx.arc(x+it.x*k,y+it.y*k,2,0,6.28);ctx.fill();}
+    else if(it.kind==='loot'){ctx.fillStyle='#7ddfa0';ctx.fillRect(x+it.x*k-1.5,y+it.y*k-1.5,3,3);}
+  }
+  /* 怪物红点（暗夜模式隐藏，保留探索压迫感；普通/强化暗夜可见） */
+  if(gameMode!=='night'){
+    for(const m of monsters){
+      if(m.dead)continue;
+      const sz=m.type==='chaser'?2:(m.type==='spitter'?2.4:2.2);
+      ctx.fillStyle=m.type==='slower'?'#6fd0ff':'#ff5f52';
+      ctx.beginPath();ctx.arc(x+m.x*k,y+m.y*k,sz,0,6.28);ctx.fill();
+    }
   }
   /* 保险箱（金色）/衣柜（绿色）标记 */
   for(const s of safes){
@@ -3319,19 +3449,35 @@ function drawMinimap(){
     if(!p.alive)return;
     if(inBushNear(p.x,p.y,PLAYER_R))return; /* 草丛中完全隐身：小地图也不显示 */
     const px=p.rx!==undefined?p.rx:p.x,py=p.ry!==undefined?p.ry:p.y;
-    ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(x+px*k,y+py*k,2.8,0,6.28);ctx.fill();
-    if(p.id===myPeerId){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();}
+    const mxp=x+px*k,myp=y+py*k;
+    /* 用朝向箭头替代圆点 */
+    const a=Math.atan2((p.fy||0),(p.fx||0));
+    ctx.save();ctx.translate(mxp,myp);ctx.rotate(a);
+    ctx.fillStyle=p.color;ctx.beginPath();
+    ctx.moveTo(3.2,0);ctx.lineTo(-2.2,2);ctx.lineTo(-2.2,-2);ctx.closePath();ctx.fill();
+    ctx.restore();
+    if(p.id===myPeerId){ctx.strokeStyle='#fff';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(mxp,myp,4.5,0,6.28);ctx.stroke();}
   };
   for(const p of Object.values(players))dot(p);
-  /* 自己强制画 + 朝向箭头 */
+  /* 自己强制画 + 朝向箭头 + 视野扇形 */
   if(me){
     const mxp=x+me.x*k,myp=y+me.y*k;
-    ctx.fillStyle=me.color;ctx.beginPath();ctx.arc(mxp,myp,3.5,0,6.28);ctx.fill();
-    ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();
     const a=Math.atan2(me.fy||0,me.fx||0);
-    ctx.strokeStyle='#fff';ctx.lineWidth=1.5;
-    ctx.beginPath();ctx.moveTo(mxp,myp);
-    ctx.lineTo(mxp+Math.cos(a)*7,myp+Math.sin(a)*7);ctx.stroke();
+    /* 视野扇形（越黑越需要，暗夜模式下更明显） */
+    const visFade=gameMode==='night'?0.35:0.18;
+    ctx.save();ctx.translate(mxp,myp);ctx.rotate(a);
+    ctx.fillStyle='rgba(255,255,255,'+visFade+')';
+    ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,14,-0.7,0.7);ctx.closePath();ctx.fill();
+    ctx.restore();
+    ctx.fillStyle=me.color;ctx.beginPath();ctx.translate(mxp,myp);ctx.rotate(a);
+    ctx.moveTo(4.2,0);ctx.lineTo(-2.6,2.4);ctx.lineTo(-2.6,-2.4);ctx.closePath();ctx.fill();
+    ctx.setTransform(1,0,0,1,0,0);
+  }
+  /* 信号标记（小地图：金色三角） */
+  for(const s of signals){
+    if(s.until<Date.now())continue;
+    ctx.fillStyle='#ffd25e';ctx.beginPath();
+    ctx.moveTo(x+s.x*k,y+s.y*k-3.5);ctx.lineTo(x+s.x*k-3,y+s.y*k+2.5);ctx.lineTo(x+s.x*k+3,y+s.y*k+2.5);ctx.closePath();ctx.fill();
   }
   /* 视野框 */
   ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=1;
@@ -3380,11 +3526,28 @@ window.useMed=useMed;
 
 /* ============ 主循环 ============ */
 let lastT=0,lastSend=0,lastBoard=0,lastShotAt=0;
+let ammo={},reloadUntil=0; /* 弹匣剩余弹药 / 换弹截止时间 */
+function ammoLeft(w){return ammo[w]!==undefined?ammo[w]:(GUNS[w]?GUNS[w].mag:0);}
+function startReload(){
+  const g=GUNS[me.weapon]||GUNS.pistol;
+  if(ammoLeft(me.weapon)>=g.mag||reloadUntil>performance.now())return;
+  reloadUntil=performance.now()+1400;
+  sfx.pop();
+}
+function finishReload(){
+  const g=GUNS[me.weapon]||GUNS.pistol;
+  ammo[me.weapon]=g.mag;
+  reloadUntil=0;
+  sfx.gem();
+}
 function tryFire(){
   if(!me||!me.alive)return;
   const g=GUNS[me.weapon]||GUNS.pistol;
   const now=performance.now();
+  if(now<reloadUntil)return; /* 换弹中不能射击 */
   if(now-lastShotAt<g.cd)return;
+  if(ammoLeft(me.weapon)<=0){startReload();return;} /* 弹匣打空：自动换弹 */
+  ammo[me.weapon]=(ammo[me.weapon]||g.mag)-1;
   lastShotAt=now;
   const a=aimDir();
   sfx.shoot(me.weapon);
@@ -3426,6 +3589,8 @@ function killPlayer(q,killerId){
   q.hp=0;q.alive=false;
   q.revives=(q.revives||REVIVE_MAX)-1;
   const killer=(killerId&&killerId>=0&&players[killerId])?players[killerId]:null;
+  /* 击杀播报（全房可见）：谁杀了谁 */
+  broadcast({type:'kill',kid:killerId,kn:killer?killer.name:'怪物',dn:q.name,big:q.bigGold>0});
   if(q.revives<=0){
     q.ghostUntil=9e15;q.deadUntil=9e15;
     broadcast({type:'sys',text:q.name+' 复活次数已用完，进入观战模式！'});
@@ -3528,6 +3693,28 @@ function loop(ts){
   const dt=Math.min(.05,((ts-lastT)/1000)||.016);
   lastT=ts;
   if(me&&inGame){
+    /* 换弹完成检测 */
+    if(reloadUntil>0&&performance.now()>=reloadUntil)finishReload();
+    /* 环境音效：附近玩家的脚步声（低频，冷却） */
+    if(ts-lastStepSnd>260&&me.alive){
+      let loud=0;
+      for(const p of Object.values(players)){
+        if(p.id===myPeerId||!p.alive)continue;
+        const spd=Math.hypot(p.fx||0,p.fy||0);
+        if(spd>0.3){
+          const d=Math.hypot(p.x-me.x,p.y-me.y);
+          if(d<360)loud=Math.max(loud,1-d/360);
+        }
+      }
+      if(loud>0.12){sfx.step();lastStepSnd=ts;}
+    }
+    /* 怪物逼近吼叫（距离<280，冷却 2.2s） */
+    if(ts-lastMonSnd>2200&&me.alive){
+      for(const m of monsters){
+        if(m.dead)continue;
+        if(Math.hypot(m.x-me.x,m.y-me.y)<280){sfx.monster();lastMonSnd=ts;break;}
+      }
+    }
     const v=inputVec();
     const boosted=Date.now()-me.boostUntil<0;
     const sprinting=keys['ShiftLeft']||keys['ShiftRight'];
@@ -3601,6 +3788,18 @@ function loop(ts){
     $('myCoins').textContent=me?me.score:0;
     $('myKills').textContent=me?(me.kills||0):0;
     $('wpnName').textContent=(GUNS[me?me.weapon:'pistol']||GUNS.pistol).name;
+    /* 弹药显示：弹匣 xx / 满弹 or 换弹中…（R 键手动换弹） */
+    const wG=GUNS[me?me.weapon:'pistol']||GUNS.pistol;
+    const wAmmo=$('wpnAmmo');
+    if(wAmmo){
+      if(reloadUntil>performance.now()){
+        wAmmo.textContent='换弹中…';
+        wAmmo.style.color='#ffd25e';
+      }else{
+        wAmmo.textContent=ammoLeft(me?me.weapon:'pistol')+' / '+wG.mag;
+        wAmmo.style.color=ammoLeft(me?me.weapon:'pistol')<=Math.min(4,wG.mag)?'#ff8a7a':'#8fce7a';
+      }
+    }
     /* 局内装备显示 */
     const eqH=$('equipHud');
     if(eqH){
