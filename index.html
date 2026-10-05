@@ -176,9 +176,10 @@ input::placeholder{ color:#9a7b5e; }
   font-size:28px; color:#ffd25e; text-shadow:0 0 8px rgba(255,210,94,.8); transform:translate(-50%,-50%); }
 
 /* 表情条 */
-#emoteBar{ position:fixed; right:14px; bottom:180px; z-index:30; display:none; gap:6px; }
-#emoteBar button{ background:rgba(36,22,14,.8); border:1px solid var(--line); color:#fff; border-radius:8px;
-  padding:6px 10px; font-size:12px; }
+#emoteBar{ position:fixed; right:14px; bottom:192px; z-index:45; display:none; gap:6px; pointer-events:none; }
+#emoteBar button{ background:rgba(36,22,14,.85); border:1px solid var(--line); color:#fff; border-radius:8px;
+  padding:7px 11px; font-size:12px; pointer-events:auto; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+#emoteBar button:active{ background:var(--gold); color:#2a1a0e; transform:scale(.94); }
 
 /* 结算浮层 */
 #result{ position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; padding:20px;
@@ -202,7 +203,7 @@ input::placeholder{ color:#9a7b5e; }
   #timer{ top:8px; font-size:15px; padding:5px 10px; }
   #coinsHud{ top:52px; font-size:12px; padding:4px 10px; }
   #weaponHud{ bottom:8px; font-size:12px; padding:5px 12px; }
-  #emoteBar{ right:8px; bottom:196px; }
+  #emoteBar{ right:8px; bottom:214px; }
 }
 
 /* ===== 加载动画 ===== */
@@ -1290,9 +1291,17 @@ const SHOP_ITEMS=[
   {id:'mag',nm:'扩容弹匣',price:100,slot:'accessory',dmg:1.1,icon:'📦',
    tag:'火力强化',tier:'普通',power:10,durability:40,
    ds:'伤害 +10% · 火力提升',stats:[['伤害加成',10],['品质','普通'],['耐久',40]]},
-  {id:'heavy',nm:'穿甲弹',price:9999,slot:'accessory',dmg:1.3,icon:'💥',
-   tag:'破甲利器',tier:'史诗',power:30,durability:45,
-   ds:'伤害 +30% · 破甲穿透',stats:[['伤害加成',30],['品质','史诗'],['耐久',45]]},
+  /* 穿甲弹 9 个等级（伤害加成 +8% → +120%，价格参考防弹衣梯度） */
+  ...[8,16,24,32,42,55,70,90,120].map((pct,i)=>{
+    const RN=['I','II','III','IV','V','VI','VII','VIII','IX'];
+    const PR=[60,110,180,280,1000,2400,3300,6000,18000];
+    const DU=[40,44,48,52,58,64,70,78,90];
+    const TAG=['入门','入门','标准','标准','强化','强化','高级','顶级','顶配'];
+    const TIER=i<2?'普通':(i<4?'稀有':(i<7?'史诗':'传说'));
+    return {id:'ammo'+(i+1),nm:'穿甲弹 '+RN[i],price:PR[i],slot:'accessory',dmg:1+pct/100,icon:'💥',
+      tag:TAG[i]+'穿甲',tier:TIER,power:pct,durability:DU[i],
+      ds:'伤害 +'+pct+'% · 穿甲等级 '+RN[i],stats:[['伤害加成',pct],['穿甲等级',RN[i]],['耐久',DU[i]]]};
+  }),
   /* 药品（消耗品：可堆叠多带，使用有进度条，恢复生命，用完消失） */
   {id:'bandage',nm:'绷带',price:60,kind:'med',heal:25,useMs:1500,icon:'🩹',
    tag:'消耗品',tier:'普通',
@@ -3875,12 +3884,18 @@ $('btnAgain').addEventListener('click',()=>{
 });
 $('btnRsClose').addEventListener('click',()=>{$('result').style.display='none';resetToMenu();});
 document.querySelectorAll('#emoteBar button').forEach(b=>{
-  b.addEventListener('click',()=>{
+  let lastFire=0;
+  const fire=()=>{
+    const now=Date.now(); if(now-lastFire<350)return; lastFire=now; /* 防触摸+click重复 */
     const ph=b.getAttribute('data-ph');
     if(isHost){broadcast({type:'emote',id:myPeerId,phrase:ph});if(me){me.emote=ph;me.emoteUntil=Date.now()+2200;}}
     else if(hostConn&&hostConn.open){hostConn.send({type:'emote',phrase:ph});if(me){me.emote=ph;me.emoteUntil=Date.now()+2200;}}
     sfx.pop();
-  });
+  };
+  /* 手机：touchstart 立即触发并拦截，避免被下层射击摇杆/画布吃掉点击 */
+  b.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();fire();},{passive:false});
+  /* 电脑：鼠标 click */
+  b.addEventListener('click',e=>{e.stopPropagation();fire();});
 });
 
 /* ===== 首次 ID 设置 ===== */
