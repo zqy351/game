@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>大地图探险 v10.23 · 撤离模式</title>
+<title>大地图探险 v10.24 · 撤离模式</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233a271c'/%3E%3Cpath d='M8 22 L16 8 L24 22 Z' fill='%23d99a5b'/%3E%3Ccircle cx='16' cy='20' r='3' fill='%23ffd25e'/%3E%3C/svg%3E" />
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -557,9 +557,6 @@ border-radius:14px; background:rgba(255,235,205,.05); cursor:pointer; transition
 <div id="signalBtn" style="position:fixed;right:158px;bottom:192px;z-index:45;width:46px;height:46px;border-radius:50%;background:rgba(36,22,14,.85);border:1px solid rgba(255,210,94,.5);color:#ffd25e;font-size:20px;display:none;align-items:center;justify-content:center;pointer-events:auto;touch-action:manipulation;">▲</div>
 <div id="emoteBar">
 <button id="chatOpenBtn" data-ph="💬" title="自由聊天">💬</button>
-<button data-ph="冲鸭！">冲鸭！</button>
-<button data-ph="溜了溜了">溜了溜了</button>
-<button data-ph="有人吗">有人吗</button>
 </div>
 <input id="chatInput" placeholder="输入消息，回车发送…" maxlength="40"
 style="display:none;position:fixed;right:14px;bottom:150px;z-index:60;width:min(300px,64vw);padding:9px 12px;border-radius:10px;border:1px solid var(--gold);background:rgba(20,12,8,.94);color:#fff;font-size:14px;outline:none;"/>
@@ -753,7 +750,7 @@ setTimeout(()=>b.remove(),4450);
 /* ============ 常量 ============ */
 const TILE=50, MAP_W=140, MAP_H=140;
 const WORLD_W=MAP_W*TILE, WORLD_H=MAP_H*TILE;
-const PLAYER_R=16, SPEED=235, MAX_HP=200;
+const PLAYER_R=16, SPEED=235, MAX_HP=300;
 const REVIVE_MAX=2; /* 每局每人最多复活 2 次，用尽后永久幽灵 */
 const ROUND_MS=15*60*1000, EXTRACT_NEED=5, EXTRACT_R=300;
 /* ===== 游戏模式 ===== */
@@ -777,12 +774,12 @@ const SOLID=new Set([2,3,6,8]); /* 8=房区墙壁 */
 /* 枪械 */
 const GUNS={
 pistol:  {name:'手枪',  dmg:20, range:1800, cd:380, speed:950, spread:.03,  pellets:1, color:'#ffd25e', mag:12},
-smg:     {name:'冲锋枪',dmg:9,  range:1600, cd:110, speed:1050,spread:.06,  pellets:1, color:'#7dd3fc', mag:40},
+smg:     {name:'冲锋枪',dmg:8,  range:1600, cd:120, speed:1050,spread:.06,  pellets:1, color:'#7dd3fc', mag:40},
 shotgun: {name:'霰弹枪',dmg:8,  range:1300, cd:900, speed:850, spread:.20,  pellets:5, color:'#fb923c', mag:6},
-rifle:   {name:'步枪',  dmg:34, range:2400, cd:700, speed:1350,spread:.015, pellets:1, color:'#f87171', mag:25},
-sniper:  {name:'狙击枪',dmg:60, range:3200,cd:1800,speed:1600,spread:.008, pellets:1, color:'#f0abfc', mag:5},
-minigun: {name:'加特林',dmg:7,  range:1500, cd:70,  speed:1150,spread:.11,  pellets:1, color:'#ffb86c', mag:90},
-dmr:     {name:'连狙',  dmg:46, range:2800, cd:430, speed:1500,spread:.012, pellets:1, color:'#b8f2a0', mag:12}
+rifle:   {name:'步枪',  dmg:30, range:2400, cd:750, speed:1350,spread:.015, pellets:1, color:'#f87171', mag:25},
+sniper:  {name:'狙击枪',dmg:52, range:3200,cd:2000,speed:1600,spread:.008, pellets:1, color:'#f0abfc', mag:5},
+minigun: {name:'加特林',dmg:6,  range:1500, cd:75,  speed:1150,spread:.11,  pellets:1, color:'#ffb86c', mag:90},
+dmr:     {name:'连狙',  dmg:38, range:2800, cd:500, speed:1500,spread:.012, pellets:1, color:'#b8f2a0', mag:12}
 };
 /* ============ 工具 ============ */
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
@@ -1449,7 +1446,7 @@ if(it.weapon)b.weapon=it.weapon;
 if(it.armor)b.armor=Math.max(b.armor,it.armor);
 if(it.helmet)b.extraArmor=Math.max(b.extraArmor,it.helmet);
 if(it.speed)b.spdMul*=it.speed;
-if(it.dmg)b.dmgMul*=it.dmg;
+if(it.dmg&&it.slot==='accessory')b.dmgMul*=it.dmg; /* 只有配件(弹匣/穿甲弹)才是伤害倍率，武器商品dmg只是展示标签 */
 }
 /* 防弹衣 + 头盔合计减伤封顶 98%（永远不可能完全免伤） */
 const totalArmor=Math.min(.98,(b.armor||0)+(b.extraArmor||0));
@@ -1593,7 +1590,7 @@ if(msg.type==='hello'){
 const s=spawnPos();
 const p=players[id]={id,name:String(msg.name||'玩家').slice(0,8),
 color:COLORS.includes(msg.color)?msg.color:COLORS[Math.floor(Math.random()*COLORS.length)],
-x:s.x,y:s.y,rx:s.x,ry:s.y,score:0,hp:MAX_HP,alive:true,weapon:'pistol',invulnUntil:0,boostUntil:0,ghostUntil:0,
+x:s.x,y:s.y,rx:s.x,ry:s.y,score:0,hp:MAX_HP,alive:true,weapon:msg.weapon||'pistol',invulnUntil:0,boostUntil:0,ghostUntil:0,
 extracted:false,fx:0,fy:0,phase:Math.random()*6.28,deadUntil:0,kills:0,pid:msg.pid||'',revives:REVIVE_MAX,
 bigGold:0,looted:[],equip:msg.equip||{}};
 /* 合并对方战绩进排行榜 */
@@ -1713,6 +1710,8 @@ const c=45+Math.floor(Math.random()*60);
 p.score=(p.score||0)+c;
 broadcast({type:'safeResult',target:id,big:false,coins:c});
 }
+/* 立即把该玩家最新金币同步给全房（保证撤离/结算归属正确，不会记到别人头上） */
+broadcast({type:'state',players:serializePlayers(),endTs:roundEndAt,exProg:extractProg,mode:gameMode});
 }
 },s.openNeed);
 }else if(msg.type==='useKey'){
@@ -2333,7 +2332,7 @@ hostConn=peer.connect(code,{reliable:false});
 hostConn.on('open',()=>{
 opened=true;clearTimeout(timer);joinRetry=0;hideLoading();roomCode=code;
 hallStop(); /* 进游戏后停止大厅订阅 */
-hostConn.send({type:'hello',name:myName,color:myColor,pid:myPid,coins:stats.coins,kills:stats.kills,equip:Object.assign({},myEquip)});
+hostConn.send({type:'hello',name:myName,color:myColor,pid:myPid,coins:stats.coins,kills:stats.kills,equip:Object.assign({},myEquip),weapon:(equippedBonuses().weapon)||'pistol'});
 });
 hostConn.on('data',d=>handleHostData(d));
 hostConn.on('close',()=>{uiLog('与房主断开连接');resetToMenu();});
@@ -2797,9 +2796,7 @@ $('result').style.display='flex';
 function onRoundEnd(results){
 const meRes=results.find(r=>r.me);
 const earn=meRes?meRes.coins:0;
-if(meRes&&meRes.extracted){
-stats.coins+=earn;stats.extracts++;stats.best=Math.max(stats.best,earn);saveStats();
-}
+/* 金币已在撤离成功瞬间由 extractDone 入账，这里只展示不重复入账，防止结算重复/串账 */
 $('rsTitle').textContent='回合结束';
 $('rsSub').textContent=isHost?'房主可开始新一局':'等待房主开始新一局';
 $('rsEarn').textContent=meRes?(meRes.extracted?('+'+meRes.coins+' 已入账'):'未撤离，本局金币未入账'):'-';
