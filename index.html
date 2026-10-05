@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>大地图探险 v10.17 · 撤离模式</title>
+<title>大地图探险 v10.18 · 撤离模式</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233a271c'/%3E%3Cpath d='M8 22 L16 8 L24 22 Z' fill='%23d99a5b'/%3E%3Ccircle cx='16' cy='20' r='3' fill='%23ffd25e'/%3E%3C/svg%3E" />
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -1914,7 +1914,7 @@ function handleHostData(msg){
     floaters.push({x:hx,y:hy-14,text:'-'+msg.dmg,life:1,color:'#ffd0c8'});
     if(mm){mm.hitFlash=1;if(typeof msg.hp==='number')mm.hp=msg.hp;}
   }else if(msg.type==='chat'){
-    uiLog('<span style="color:#9ce6ff">'+escapeHtml(msg.by||'玩家')+'：</span>'+escapeHtml(msg.text||''));
+    uiLogHtml('<span style="color:#9ce6ff">'+escapeHtml(msg.by||'玩家')+'：</span>'+escapeHtml(msg.text||''));
   }else if(msg.type==='mSpawn'){
     monsters.push({id:msg.m.id,type:msg.m.type,x:msg.m.x,y:msg.m.y,vx:0,vy:0,ph:Math.random()*6.28,cooldown:0,atkCd:1,hp:mhp(msg.m.type),hitFlash:0});
   }else if(msg.type==='monsterDead'){
@@ -3392,25 +3392,7 @@ function drawScene(ts){
     if(m.x<camX-80||m.x>camX+W+80||m.y<camY-80||m.y>camY+H+80)continue;
     drawMonster(m,ts);
   }
-  /* 子弹 */
-  for(let i=bullets.length-1;i>=0;i--){
-    const b=bullets[i];
-    ctx.globalAlpha=Math.max(0,b.life/1.8);
-    ctx.strokeStyle=b.color;ctx.lineWidth=3;ctx.lineCap='round';
-    ctx.shadowColor=b.color;ctx.shadowBlur=8;
-    ctx.beginPath();ctx.moveTo(b.x-b.vx*.07,b.y-b.vy*.07);ctx.lineTo(b.x,b.y);ctx.stroke();
-    ctx.shadowBlur=0;
-  }
-  /* 喷射者弹丸：房主看 enemyShots，客户端看 ebullets */
-  const eShots=isHost?enemyShots:ebullets;
-  for(const b of eShots){
-    const grd=ctx.createRadialGradient(b.x,b.y,0,b.x,b.y,9);
-    grd.addColorStop(0,'#f7c8ff');grd.addColorStop(.5,'#c054e8');grd.addColorStop(1,'rgba(120,40,160,0)');
-    ctx.fillStyle=grd;ctx.beginPath();ctx.arc(b.x,b.y,9,0,6.28);ctx.fill();
-    ctx.strokeStyle='rgba(230,170,255,.8)';ctx.lineWidth=2;
-    ctx.beginPath();ctx.moveTo(b.x-b.vx*.05,b.y-b.vy*.05);ctx.lineTo(b.x,b.y);ctx.stroke();
-  }
-  ctx.globalAlpha=1;
+  /* 子弹与怪物弹丸（绘制已移到遮罩之后，保证暗夜模式下弹道可见） */
   for(const p of Object.values(players)){
     if(p.id===myPeerId)continue;
     if(p.x<camX-120||p.x>camX+W+120||p.y<camY-120||p.y>camY+H+120)continue;
@@ -3501,6 +3483,24 @@ function drawScene(ts){
       ctx.beginPath();ctx.arc(W/2,H/2,vR,0,6.28);ctx.stroke();
     }
   }
+  /* ===== 弹道绘制（放在遮罩/滤镜之后：任何模式弹道永远清晰可见） ===== */
+  for(let i=bullets.length-1;i>=0;i--){
+    const b=bullets[i];
+    ctx.globalAlpha=Math.max(0,b.life/1.8);
+    ctx.strokeStyle=b.color;ctx.lineWidth=4;ctx.lineCap='round';
+    ctx.shadowColor=b.color;ctx.shadowBlur=10;
+    ctx.beginPath();ctx.moveTo(b.x-b.vx*.07,b.y-b.vy*.07);ctx.lineTo(b.x,b.y);ctx.stroke();
+    ctx.shadowBlur=0;
+  }
+  const eShots=isHost?enemyShots:ebullets;
+  for(const b of eShots){
+    const grd=ctx.createRadialGradient(b.x,b.y,0,b.x,b.y,9);
+    grd.addColorStop(0,'#f7c8ff');grd.addColorStop(.5,'#c054e8');grd.addColorStop(1,'rgba(120,40,160,0)');
+    ctx.fillStyle=grd;ctx.beginPath();ctx.arc(b.x,b.y,9,0,6.28);ctx.fill();
+    ctx.strokeStyle='rgba(230,170,255,.9)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(b.x-b.vx*.05,b.y-b.vy*.05);ctx.lineTo(b.x,b.y);ctx.stroke();
+  }
+  ctx.globalAlpha=1;
   /* 枪声方位红闪（屏幕边缘，朝开枪者方向） */
   if(shotFlash.until>ts&&me){
     const left=(shotFlash.until-ts)/260;
@@ -4211,6 +4211,16 @@ function uiLog(txt){
   clearTimeout(logT);
   logT=setTimeout(()=>{sysLog.style.display='none';},5000);
 }
+/* 带样式的日志（仅限内部构造的安全 HTML，聊天消息用；内容文本必须已 escapeHtml） */
+function uiLogHtml(html){
+  const now=new Date();
+  const t=now.toTimeString().slice(0,8);
+  sysLog.innerHTML='<div style="margin-top:2px;opacity:.95"><span style="color:#888;font-size:10px">'+t+'</span> '+html+'</div>'+sysLog.innerHTML;
+  while(sysLog.children.length>5)sysLog.removeChild(sysLog.lastChild);
+  sysLog.style.display='block';
+  clearTimeout(logT);
+  logT=setTimeout(()=>{sysLog.style.display='none';},6000);
+}
 function showLoading(t){
   $('menuLog').textContent=t;$('btnCreate').disabled=true;$('btnJoin').disabled=true;
   const l=$('roomLoader');
@@ -4427,8 +4437,8 @@ function sendChatMsg(text){
   if(!text||!inGame)return;
   const isMe=me&&me.alive;
   try{
-    if(isHost){broadcast({type:'chat',by:myName,text});uiLog('<span style="color:#9ce6ff">'+escapeHtml(myName)+'：</span>'+escapeHtml(text));}
-    else if(hostConn&&hostConn.open){hostConn.send({type:'chat',by:myName,text});uiLog('<span style="color:#9ce6ff">'+escapeHtml(myName)+'：</span>'+escapeHtml(text));}
+    if(isHost){broadcast({type:'chat',by:myName,text});uiLogHtml('<span style="color:#9ce6ff">'+escapeHtml(myName)+'：</span>'+escapeHtml(text));}
+    else if(hostConn&&hostConn.open){hostConn.send({type:'chat',by:myName,text});uiLogHtml('<span style="color:#9ce6ff">'+escapeHtml(myName)+'：</span>'+escapeHtml(text));}
     else toastTop('⚠️ 网络不稳，消息未送达');
   }catch(e){toastTop('⚠️ 消息发送失败，请重试');}
 }
