@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>大地图探险 v10.24 · 撤离模式</title>
+<title>大地图探险 v10.25 · 撤离模式</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233a271c'/%3E%3Cpath d='M8 22 L16 8 L24 22 Z' fill='%23d99a5b'/%3E%3Ccircle cx='16' cy='20' r='3' fill='%23ffd25e'/%3E%3C/svg%3E" />
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -830,10 +830,10 @@ if(grid[y][x]===0||grid[y][x]===4)grid[y][x]=2;
 }
 for(let x=0;x<MAP_W;x++){grid[0][x]=6;grid[MAP_H-1][x]=6;}
 for(let y=0;y<MAP_H;y++){grid[y][0]=6;grid[y][MAP_W-1]=6;}
-/* 草丛（隐蔽） */
+/* 草丛（隐蔽）——全局低密度，撤离点周边另行加密 */
 bushes.length=0;
 for(let y=0;y<MAP_H;y++){bushes.push(new Array(MAP_W).fill(false));
-for(let x=0;x<MAP_W;x++){ if((grid[y][x]===0||grid[y][x]===1)&&rng()<0.22)bushes[y][x]=true; }
+for(let x=0;x<MAP_W;x++){ if((grid[y][x]===0||grid[y][x]===1)&&rng()<0.07)bushes[y][x]=true; }
 }
 }
 genTerrain();
@@ -1004,8 +1004,8 @@ if(!isSolid(tx,ty)&&!hitsSolid(x,y,PLAYER_R+12))return {x,y};
 }
 return {x:WORLD_W/2,y:WORLD_H/2};
 }
-/* 撤离点固定在地图右上区域 */
-const EX_X=WORLD_W*0.86, EX_Y=WORLD_H*0.14;
+/* 撤离点：每局随机刷新在地图上，开局 5 分钟后才开启 */
+let EX_X=0,EX_Y=0,extractActiveAt=0;
 /* ============ 道具 ============ */
 let items=[];
 let safes=[]; /* 保险箱 */
@@ -1601,7 +1601,7 @@ sfx.join();
 const joinMsg={type:'join',players:serializePlayers(),
 items:items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,weapon:i.weapon||'',value:i.value||0,itemId:i.itemId||'',itemName:i.itemName||''})),
 monsters:monsters.map(m=>({id:m.id,t:m.type||'chaser',x:m.x,y:m.y,ph:m.ph,hp:m.hp||MONSTER_HP})),
-endTs:roundEndAt,exX:EX_X,exY:EX_Y,mode:gameMode,safes:safes.map(s=>({id:s.id,x:s.x,y:s.y,opened:s.opened,big:s.big,kind:s.kind||'safe',opening:s.opening||false,openStart:s.openStart||0,openNeed:s.openNeed||2000})),
+endTs:roundEndAt,exX:EX_X,exY:EX_Y,exActiveAt:extractActiveAt,mode:gameMode,safes:safes.map(s=>({id:s.id,x:s.x,y:s.y,opened:s.opened,big:s.big,kind:s.kind||'safe',opening:s.opening||false,openStart:s.openStart||0,openNeed:s.openNeed||2000})),
 boardMe:{pid:myPid,coins:stats.coins,kills:stats.kills,name:myName,color:myColor}};
 peer.connections[id].forEach(c=>{if(c.open)c.send(joinMsg);});
 /* 立刻把新玩家同步给所有老客户端 */
@@ -1777,6 +1777,7 @@ items=msg.items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,takenAt:0
 monsters=msg.monsters.map(m=>({id:m.id,type:m.t||'chaser',x:m.x,y:m.y,ph:m.ph,cooldown:0,hp:m.hp||MONSTER_HP,hitFlash:0}));
 safes=(msg.safes||[]).map(s=>({id:s.id,x:s.x,y:s.y,opened:s.opened,big:s.big,kind:s.kind||'safe',opening:s.opening||false,openStart:s.openStart||0,openNeed:s.openNeed||2000}));
 if(typeof msg.endTs==='number')roundEndAt=msg.endTs;
+if(typeof msg.exX==='number'){EX_X=msg.exX;EX_Y=msg.exY;extractActiveAt=msg.exActiveAt||0;}
 if(msg.mode){gameMode=msg.mode;syncModeUI();}
 if(msg.boardMe)mergeIntoBoard(msg.boardMe.pid,msg.boardMe.name,msg.boardMe.color,msg.boardMe.coins||0,msg.boardMe.kills||0);
 upselfBoard();
@@ -1975,6 +1976,7 @@ if(!(msg.door.x<0||msg.door.y<0||msg.door.x>=MAP_W||msg.door.y>=MAP_H))grid[msg.
 updateSafeBtn&&updateSafeBtn();
 }else if(msg.type==='roundStart'){
 roundEndAt=msg.endTs;extractProg={};
+if(typeof msg.exX==='number'){EX_X=msg.exX;EX_Y=msg.exY;extractActiveAt=msg.exActiveAt||0;}
 window.__extractedDone=false;
 safes=[];
 visitedRooms.clear(); /* 新一局：重置已进入房间（屋顶重新盖住，不再“亮着”） */
@@ -2196,8 +2198,28 @@ clearTimeout(window.__toastT);
 window.__toastT=setTimeout(()=>{window.__toast.style.display='none';},3500);
 }
 /* ---- 开局/新一局（房主） ---- */
+/* 随机撤离点：避开墙/深水/房区，选可通行的草地沙地 */
+function pickExtractSpot(){
+for(let t=0;t<400;t++){
+const tx=3+Math.floor(Math.random()*(MAP_W-6)),ty=3+Math.floor(Math.random()*(MAP_H-6));
+if(grid[ty][tx]===0||grid[ty][tx]===1||grid[ty][tx]===4){
+if(!(tx>=MAP_W/2-14&&tx<=MAP_W/2+14&&ty>=MAP_H/2-10&&ty<=MAP_H/2+10)) /* 避开中心房区 */
+return {x:tx*TILE+TILE/2,y:ty*TILE+TILE/2};
+}
+}
+return {x:TILE*(MAP_W*0.86),y:TILE*(MAP_H*0.14)};
+}
 function newRound(){
 roundEndAt=Date.now()+ROUND_MS;
+/* 撤离点随机刷新在地图可通行区域，开局 5 分钟后开启 */
+const exSpot=pickExtractSpot();EX_X=exSpot.x;EX_Y=exSpot.y;extractActiveAt=Date.now()+300000;
+/* 撤离点周边加密草丛（固定种子：所有客户端一致） */
+const er=mulberry32(Math.floor(EX_X)+Math.floor(EX_Y)*777);
+for(let i=0;i<26;i++){
+const a=er()*6.28,r=2+er()*5;
+const tx=Math.round(EX_X/TILE+Math.cos(a)*r),ty=Math.round(EX_Y/TILE+Math.sin(a)*r);
+if(tx>=1&&ty>=1&&tx<MAP_W-1&&ty<MAP_H-1&&(grid[ty][tx]===0||grid[ty][tx]===1))bushes[ty][tx]=true;
+}
 initTasks();
 roundActive=true;extractProg={};
 visitedRooms.clear(); /* 新一局：重置已进入房间（屋顶重新盖住，不再“亮着”） */
@@ -2698,7 +2720,7 @@ const now=Date.now();
 for(const p of Object.values(players)){
 if(!p.alive||p.extracted){extractProg[p.id]=0;continue;}
 const d=Math.hypot(p.x-EX_X,p.y-EX_Y);
-if(d<EXTRACT_R){
+if(d<EXTRACT_R&&now>=extractActiveAt){
 extractProg[p.id]=(extractProg[p.id]||0)+dt;
 if(extractProg[p.id]>=EXTRACT_NEED){
 extractProg[p.id]=0;
@@ -3238,20 +3260,27 @@ ctx.beginPath();ctx.moveTo(-2,-4);ctx.lineTo(-4,-8);ctx.stroke();
 ctx.restore();
 }
 function drawExtraction(ts){
+const active=Date.now()>=extractActiveAt;
 const pulse=1+Math.sin(ts/400)*.05;
-ctx.fillStyle='rgba(240,192,104,.12)';
+ctx.fillStyle=active?'rgba(240,192,104,.12)':'rgba(140,140,140,.08)';
 ctx.beginPath();ctx.arc(EX_X,EX_Y,EXTRACT_R*pulse,0,6.28);ctx.fill();
-ctx.strokeStyle='rgba(240,192,104,.7)';ctx.lineWidth=3;
+ctx.strokeStyle=active?'rgba(240,192,104,.7)':'rgba(140,140,140,.5)';ctx.lineWidth=3;
 ctx.beginPath();ctx.arc(EX_X,EX_Y,EXTRACT_R*pulse,0,6.28);ctx.stroke();
-ctx.strokeStyle='rgba(240,210,140,.35)';ctx.lineWidth=2;
+ctx.strokeStyle=active?'rgba(240,210,140,.35)':'rgba(140,140,140,.25)';ctx.lineWidth=2;
 ctx.beginPath();ctx.arc(EX_X,EX_Y,EXTRACT_R*.6,0,6.28);ctx.stroke();
 /* 光柱 */
 const grd=ctx.createLinearGradient(EX_X,EX_Y-300,EX_X,EX_Y);
-grd.addColorStop(0,'rgba(240,192,104,0)');grd.addColorStop(1,'rgba(240,192,104,.35)');
+grd.addColorStop(0,active?'rgba(240,192,104,0)':'rgba(140,140,140,0)');grd.addColorStop(1,active?'rgba(240,192,104,.35)':'rgba(140,140,140,.2)');
 ctx.fillStyle=grd;ctx.fillRect(EX_X-22,EX_Y-300,44,300);
-ctx.fillStyle='#ffd25e';ctx.font='bold 14px "PingFang SC",sans-serif';ctx.textAlign='center';
+ctx.fillStyle=active?'#ffd25e':'#999';ctx.font='bold 14px "PingFang SC",sans-serif';ctx.textAlign='center';
 ctx.strokeStyle='rgba(0,0,0,.7)';ctx.lineWidth=3;
-ctx.strokeText('撤离点',EX_X,EX_Y-EXTRACT_R-12);ctx.fillText('撤离点',EX_X,EX_Y-EXTRACT_R-12);
+const lbl=active?'撤离点':'撤离点未开启';
+ctx.strokeText(lbl,EX_X,EX_Y-EXTRACT_R-12);ctx.fillText(lbl,EX_X,EX_Y-EXTRACT_R-12);
+if(!active){
+const sec=Math.max(0,Math.ceil((extractActiveAt-Date.now())/1000));
+ctx.font='bold 12px "PingFang SC",sans-serif';
+ctx.strokeText('倒计时 '+sec+'s',EX_X,EX_Y-EXTRACT_R+16);ctx.fillText('倒计时 '+sec+'s',EX_X,EX_Y-EXTRACT_R+16);
+}
 }
 function drawScene(ts){
 ctx.clearRect(0,0,W,H);
@@ -3557,10 +3586,11 @@ const cx2=r.x0*TILE+r.x1*TILE>>1,cy2=r.y0*TILE+r.y1*TILE>>1;
 ctx.strokeStyle='rgba(199,125,255,.85)';ctx.lineWidth=1.5;
 ctx.strokeRect(x+cx2*k-4,y+cy2*k-4,8,8);
 }
-/* 撤离点（脉冲圈） */
+/* 撤离点（脉冲圈）——未开启前灰色小点 */
+const exActiveMap=Date.now()>=extractActiveAt;
 const pr=4+Math.sin(performance.now()/300)*1.5;
-ctx.fillStyle='#ffd25e';ctx.beginPath();ctx.arc(x+EX_X*k,y+EX_Y*k,pr,0,6.28);ctx.fill();
-ctx.strokeStyle='rgba(255,210,94,.6)';ctx.beginPath();ctx.arc(x+EX_X*k,y+EX_Y*k,pr+3,0,6.28);ctx.stroke();
+ctx.fillStyle=exActiveMap?'#ffd25e':'#888';ctx.beginPath();ctx.arc(x+EX_X*k,y+EX_Y*k,pr,0,6.28);ctx.fill();
+ctx.strokeStyle=exActiveMap?'rgba(255,210,94,.6)':'rgba(136,136,136,.6)';ctx.beginPath();ctx.arc(x+EX_X*k,y+EX_Y*k,pr+3,0,6.28);ctx.stroke();
 const dot=p=>{
 if(!p.alive)return;
 if(inBushNear(p.x,p.y,PLAYER_R))return; /* 草丛中完全隐身：小地图也不显示 */
@@ -4024,8 +4054,9 @@ const left=Math.max(0,roundEndAt-Date.now());
 const mm=Math.floor(left/60000),ss=Math.floor(left%60000/1000);
 $('timer').textContent=(mm<10?'0':'')+mm+':'+(ss<10?'0':'')+ss;
 $('timer').classList.toggle('urgent',left<60000);
-/* 撤离进度 */
-if(me&&me.alive&&Math.hypot(me.x-EX_X,me.y-EX_Y)<EXTRACT_R){
+/* 撤离进度：撤离点 5 分钟后开启 */
+const exActive=Date.now()>=extractActiveAt;
+if(me&&me.alive&&exActive&&Math.hypot(me.x-EX_X,me.y-EX_Y)<EXTRACT_R){
 const prog=(extractProg[myPeerId]||0);
 $('extractBar').style.display='block';
 $('exFill').style.width=(Math.min(1,prog/EXTRACT_NEED)*100)+'%';
@@ -4042,7 +4073,9 @@ ex.style.display='block';
 ex.style.left=(W/2+Math.cos(ang)*Math.min(W,H)*0.38)+'px';
 ex.style.top=(H/2+Math.sin(ang)*Math.min(W,H)*0.38)+'px';
 ex.style.transform=`translate(-50%,-50%) rotate(${ang*180/Math.PI+90}deg)`;
-ex.textContent='⬇\n'+dist+'m';
+ex.style.color=exActive?'#ffd25e':'#777';
+ex.textContent=(exActive?'⬇\n':'⏳\n')+dist+'m';
+const exLbl=$('exArrowLbl');if(exLbl)exLbl.textContent=exActive?'':'撤离点 '+Math.max(0,Math.ceil((extractActiveAt-Date.now())/1000))+'s 后开启';
 }else{$('exArrow').style.display='none';}
 updateSafeBtn();
 }
@@ -4075,13 +4108,14 @@ for(let i=0;i<need;i++)monsters.push(spawnMonster());
 broadcast({type:'monsters',monsters:monsters.map(m=>({id:m.id,t:m.type||'chaser',x:Math.round(m.x),y:Math.round(m.y),ph:m.ph,hp:Math.round(m.hp||MONSTER_HP)}))});
 }
 },2500);
-/* 道具重生 */
+/* 道具重生——仅地图基础物资(金币/宝石/钻石/皇冠/增益)被捡走后过一段时间刷新；
+死亡掉落的金币袋/大金/武器/装备(loot) 被捡走即永久消失，绝不重生 */
 setInterval(()=>{
 if(!isHost)return;
 const now=Date.now();let changed=false;
+const noRespawn=new Set(['bag','gold','loot','crate']);
 for(const it of items){
-if(it.kind==='bag'){if(now-it.takenAt>30000){it.taken=false;changed=true;}}
-else if(it.taken&&now-it.takenAt>25000){it.taken=false;changed=true;}
+if(it.taken&&!noRespawn.has(it.kind)&&now-it.takenAt>25000){it.taken=false;changed=true;}
 }
 if(changed)broadcastItems();
 },2000);
@@ -4337,7 +4371,7 @@ if(isHost){
 window.__extractedDone=false;
 if(window.__leaveBtn)window.__leaveBtn.style.display='none';
 newRound();
-broadcast({type:'roundStart',endTs:roundEndAt,meX:Math.round(me.x),meY:Math.round(me.y),mode:gameMode});
+broadcast({type:'roundStart',endTs:roundEndAt,meX:Math.round(me.x),meY:Math.round(me.y),mode:gameMode,exX:EX_X,exY:EX_Y,exActiveAt:extractActiveAt});
 $('result').style.display='none';
 uiLog('新一局开始！');
 }
