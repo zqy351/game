@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>大地图探险 v10.25 · 撤离模式</title>
+<title>大地图探险 v10.26 · 撤离模式</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233a271c'/%3E%3Cpath d='M8 22 L16 8 L24 22 Z' fill='%23d99a5b'/%3E%3Ccircle cx='16' cy='20' r='3' fill='%23ffd25e'/%3E%3C/svg%3E" />
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -812,6 +812,7 @@ const grid=[];
 const bushes=[];
 /* 重新生成地形（水体/草地/沙地/岩石/边界 + 草丛），可被 rebuildMap 重复调用 */
 function genTerrain(){
+const r=mulberry32(20260924); /* 固定种子局部流：每次重建地图地形/岩石/沙地/草丛完全一致，多客户端联机不漂移 */
 grid.length=0;
 for(let y=0;y<MAP_H;y++)grid.push(new Array(MAP_W).fill(0));
 for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
@@ -819,13 +820,13 @@ const h=heightAt(x,y);
 grid[y][x]= h<.30?0 : h<.50?1 : h<.64?4 : h<.72?3 : 4; /* 5=冰已删除：高海拔区域改为沙地(4)，不再生成冰面 */
 }
 for(let i=0;i<9;i++){
-const cx=2+Math.floor(rng()*(MAP_W-4)), cy=2+Math.floor(rng()*(MAP_H-4)), r=3+rng()*5;
+const cx=2+Math.floor(r()*(MAP_W-4)), cy=2+Math.floor(r()*(MAP_H-4)), rr2=3+r()*5;
 for(let y=Math.max(1,cy-7);y<=Math.min(MAP_H-2,cy+7);y++)
 for(let x=Math.max(1,cx-7);x<=Math.min(MAP_W-2,cx+7);x++)
-if(Math.hypot(x-cx,y-cy)<=r)grid[y][x]=3;
+if(Math.hypot(x-cx,y-cy)<=rr2)grid[y][x]=3;
 }
 for(let i=0;i<140;i++){
-const x=1+Math.floor(rng()*(MAP_W-2)), y=1+Math.floor(rng()*(MAP_H-2));
+const x=1+Math.floor(r()*(MAP_W-2)), y=1+Math.floor(r()*(MAP_H-2));
 if(grid[y][x]===0||grid[y][x]===4)grid[y][x]=2;
 }
 for(let x=0;x<MAP_W;x++){grid[0][x]=6;grid[MAP_H-1][x]=6;}
@@ -833,7 +834,7 @@ for(let y=0;y<MAP_H;y++){grid[y][0]=6;grid[y][MAP_W-1]=6;}
 /* 草丛（隐蔽）——全局低密度，撤离点周边另行加密 */
 bushes.length=0;
 for(let y=0;y<MAP_H;y++){bushes.push(new Array(MAP_W).fill(false));
-for(let x=0;x<MAP_W;x++){ if((grid[y][x]===0||grid[y][x]===1)&&rng()<0.07)bushes[y][x]=true; }
+for(let x=0;x<MAP_W;x++){ if((grid[y][x]===0||grid[y][x]===1)&&r()<0.07)bushes[y][x]=true; }
 }
 }
 genTerrain();
