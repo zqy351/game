@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>大地图探险 v10.26 · 撤离模式</title>
+<title>大地图探险 v10.28 · 撤离模式</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233a271c'/%3E%3Cpath d='M8 22 L16 8 L24 22 Z' fill='%23d99a5b'/%3E%3Ccircle cx='16' cy='20' r='3' fill='%23ffd25e'/%3E%3C/svg%3E" />
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -932,6 +932,16 @@ extractProg={};
 myLooted=[];myGolds=0;
 window.__extractedDone=false;
 }
+/* 房主权威地形同步：房主把 grid+草丛 序列化发给客端，客端原样加载，保证全端地形完全一致 */
+function serializeMap(){return {g:grid.map(r=>r.join('')),b:bushes.map(r=>r.map(v=>v?1:0).join(''))};}
+function applyMap(m){
+if(!m||!m.g||!m.b)return false;
+try{
+grid=m.g.map(row=>row.split('').map(Number));
+bushes=m.b.map(row=>row.split('').map(v=>v==='1'));
+return true;
+}catch(e){return false;}
+}
 function inRoom(x,y){
 const tx=Math.floor(x/TILE),ty=Math.floor(y/TILE);
 for(let i=0;i<rooms.length;i++){
@@ -1602,7 +1612,7 @@ sfx.join();
 const joinMsg={type:'join',players:serializePlayers(),
 items:items.map(i=>({id:i.id,kind:i.kind,x:i.x,y:i.y,taken:i.taken,weapon:i.weapon||'',value:i.value||0,itemId:i.itemId||'',itemName:i.itemName||''})),
 monsters:monsters.map(m=>({id:m.id,t:m.type||'chaser',x:m.x,y:m.y,ph:m.ph,hp:m.hp||MONSTER_HP})),
-endTs:roundEndAt,exX:EX_X,exY:EX_Y,exActiveAt:extractActiveAt,mode:gameMode,safes:safes.map(s=>({id:s.id,x:s.x,y:s.y,opened:s.opened,big:s.big,kind:s.kind||'safe',opening:s.opening||false,openStart:s.openStart||0,openNeed:s.openNeed||2000})),
+endTs:roundEndAt,exX:EX_X,exY:EX_Y,exActiveAt:extractActiveAt,mode:gameMode,map:serializeMap(),safes:safes.map(s=>({id:s.id,x:s.x,y:s.y,opened:s.opened,big:s.big,kind:s.kind||'safe',opening:s.opening||false,openStart:s.openStart||0,openNeed:s.openNeed||2000})),
 boardMe:{pid:myPid,coins:stats.coins,kills:stats.kills,name:myName,color:myColor}};
 peer.connections[id].forEach(c=>{if(c.open)c.send(joinMsg);});
 /* 立刻把新玩家同步给所有老客户端 */
@@ -1687,34 +1697,8 @@ if(!p)return;
 if(!lineOfSight(p.x,p.y,s.x,s.y)){peer.connections[id].forEach(c=>{if(c.open)try{c.send({type:'safeFail',id:s.id});}catch(e){}});return;}
 s.opening=true;s.openStart=Date.now();
 broadcastSafes();
-/* 读条结束后由房主结算（通过定时检查或由 state 轮询触发） */
-setTimeout(()=>{
-if(!safes.includes(s))return; /* 新一局已重建 safes，丢弃旧结算 */
-if(s.opening){
-s.opening=false;s.openStart=0;s.opened=true;
-broadcastSafes();
-if(s.kind==='wardrobe'){
-if(Math.random()<0.02){
-broadcast({type:'safeResult',target:id,key:true,coins:0});
-broadcast({type:'sys',text:p.name+' 从衣柜摸到了房卡！'});
-}else{
-const c=35+Math.floor(Math.random()*45);
-p.score=(p.score||0)+c;
-broadcast({type:'safeResult',target:id,big:false,coins:c});
-}
-}else if(s.big){
-p.bigGold=(p.bigGold||0)+1;
-broadcast({type:'safeResult',target:id,big:true,coins:0});
-broadcast({type:'sys',text:p.name+' 从保险箱开出了大金！'});
-}else{
-const c=45+Math.floor(Math.random()*60);
-p.score=(p.score||0)+c;
-broadcast({type:'safeResult',target:id,big:false,coins:c});
-}
-/* 立即把该玩家最新金币同步给全房（保证撤离/结算归属正确，不会记到别人头上） */
-broadcast({type:'state',players:serializePlayers(),endTs:roundEndAt,exProg:extractProg,mode:gameMode});
-}
-},s.openNeed);
+/* 读条结束后由房主唯一权威路径结算（保证金币/大金/房卡记到开箱人头上并广播） */
+setTimeout(()=>settleOpenSafe(s,p),s.openNeed);
 }else if(msg.type==='useKey'){
 /* 客端请求使用房卡开门 */
 const doorRef=findLockedDoorNear(players[id]?players[id].x:me.x,players[id]?players[id].y:me.y,true);
@@ -1779,6 +1763,7 @@ monsters=msg.monsters.map(m=>({id:m.id,type:m.t||'chaser',x:m.x,y:m.y,ph:m.ph,co
 safes=(msg.safes||[]).map(s=>({id:s.id,x:s.x,y:s.y,opened:s.opened,big:s.big,kind:s.kind||'safe',opening:s.opening||false,openStart:s.openStart||0,openNeed:s.openNeed||2000}));
 if(typeof msg.endTs==='number')roundEndAt=msg.endTs;
 if(typeof msg.exX==='number'){EX_X=msg.exX;EX_Y=msg.exY;extractActiveAt=msg.exActiveAt||0;}
+if(msg.map)applyMap(msg.map); /* 房主权威地形：进入玩家加载与房主完全一致的地形+草丛 */
 if(msg.mode){gameMode=msg.mode;syncModeUI();}
 if(msg.boardMe)mergeIntoBoard(msg.boardMe.pid,msg.boardMe.name,msg.boardMe.color,msg.boardMe.coins||0,msg.boardMe.kills||0);
 upselfBoard();
@@ -1978,6 +1963,7 @@ updateSafeBtn&&updateSafeBtn();
 }else if(msg.type==='roundStart'){
 roundEndAt=msg.endTs;extractProg={};
 if(typeof msg.exX==='number'){EX_X=msg.exX;EX_Y=msg.exY;extractActiveAt=msg.exActiveAt||0;}
+if(msg.map)applyMap(msg.map); /* 房主权威地形：换局后加载与房主完全一致的地形+草丛 */
 window.__extractedDone=false;
 safes=[];
 visitedRooms.clear(); /* 新一局：重置已进入房间（屋顶重新盖住，不再“亮着”） */
@@ -2066,15 +2052,7 @@ h.textContent=hasNVG()?'🔭 夜视仪已启动':(gameMode==='nightmare'?'🌑 �
 function updateSafeBtn(){
 const btn=$('safeBtn');
 if(!inGame||!me||!me.alive){btn.style.display='none';return;}
-/* 房主：读条完成后自动结算；客端等待房主广播 */
-if(isHost){
-const openingSafes=safes.filter(s=>!s.opened&&s.opening&&s.openStart>0);
-for(const s of openingSafes){
-if(Date.now()-s.openStart>=s.openNeed){
-finishOpenSafe(s);
-}
-}
-}
+/* 结算统一由房主 openSafe 消息里的 setTimeout 完成（单一权威路径，避免双结算把金币记错人） */
 const near=safes.find(s=>!s.opened&&Math.hypot(me.x-s.x,me.y-s.y)<110&&lineOfSight(me.x,me.y,s.x,s.y));
 if(near){
 if(near.opening){
@@ -2114,35 +2092,41 @@ if(!lineOfSight(me.x,me.y,s.x,s.y)){uiLog('被墙挡住了，无法开启');retu
 s.opening=true;s.openStart=Date.now();
 broadcastSafes();
 sfx.open&&sfx.open();
+/* 房主自己开箱也走统一权威结算路径（避免卡读条/双结算） */
+setTimeout(()=>settleOpenSafe(s,me),s.openNeed);
 }
-/* 开启完成：发奖励 */
-function finishOpenSafe(s){
+/* 开箱结算唯一权威路径（房主执行）：金币/大金/房卡记到开箱人头上并广播给全房 */
+function settleOpenSafe(s,p){
+if(!safes.includes(s))return; /* 新一局已重建 safes，丢弃旧结算 */
+if(!s.opening)return;
 s.opening=false;s.openStart=0;s.opened=true;
 broadcastSafes();
 sfx.gem();
 if(s.kind==='wardrobe'){
 /* 衣柜：房卡极低概率（只从衣柜出） */
 if(Math.random()<0.02){
-myKeys={...myKeys,count:(myKeys.count||0)+1};
-saveKeys(myKeys);
-toastTop('🎴 摸到一张【房卡】！已放入背包');
-uiLog('衣柜里摸到了房卡！可用来开启金库大门');
+if(p.id===myPeerId)toastTop('🎴 摸到一张【房卡】！已放入背包');
+broadcast({type:'safeResult',target:p.id,key:true,coins:0});
+broadcast({type:'sys',text:p.name+' 从衣柜摸到了房卡！'});
 }else{
 const c=35+Math.floor(Math.random()*45);
-me.score=(me.score||0)+c;
-toastTop('衣柜里摸到 '+c+' 金币');
+p.score=(p.score||0)+c;
+if(p.id===myPeerId)toastTop('衣柜里摸到 '+c+' 金币');
+broadcast({type:'safeResult',target:p.id,big:false,coins:c});
 }
 }else if(s.big){
-me.bigGold=(me.bigGold||0)+1;
-toastTop('💰 开出超稀有【大金】！已放入背包');
-uiLog('保险箱开出了大金！撤离成功后可收藏进仓库');
+p.bigGold=(p.bigGold||0)+1;
+if(p.id===myPeerId)toastTop('💰 开出超稀有【大金】！已放入背包');
+broadcast({type:'safeResult',target:p.id,big:true,coins:0});
+broadcast({type:'sys',text:p.name+' 从保险箱开出了大金！'});
 }else{
 const c=45+Math.floor(Math.random()*60);
-me.score=(me.score||0)+c;
-toastTop('保险箱里开出 '+c+' 金币');
-uiLog('保险箱开出 '+c+' 金币');
+p.score=(p.score||0)+c;
+if(p.id===myPeerId)toastTop('保险箱里开出 '+c+' 金币');
+broadcast({type:'safeResult',target:p.id,big:false,coins:c});
 }
-updateSafeBtn();
+/* 立即把该玩家最新金币同步给全房（保证撤离/结算归属正确，不会记到别人头上） */
+broadcast({type:'state',players:serializePlayers(),endTs:roundEndAt,exProg:extractProg,mode:gameMode});
 }
 /* 使用房卡开门 */
 function useKeyOnDoor(){
@@ -2540,7 +2524,7 @@ return {dx:1,dy:0};
 /* 怪物对玩家造成伤害（含死亡结算），返回是否造成了伤害 */
 function monsterHurt(p,dmg,now,deathText){
 if(!p.alive||now<p.invulnUntil)return false;
-if(inBushNear(p.x,p.y,PLAYER_R))return false; /* 草丛完全隐身：怪物也打不到 */
+/* 草丛只隐藏显示，不免疫伤害：隐身玩家仍可被怪物命中 */
 p.hp-=dmg;p.invulnUntil=now+2000;
 broadcast({type:'hit',target:p.id,from:-1,dmg});
 if(p.hp<=0){
@@ -2635,7 +2619,7 @@ s.x+=s.vx*dt/steps;s.y+=s.vy*dt/steps;
 if(isSolid(Math.floor(s.x/TILE),Math.floor(s.y/TILE))){dead=true;break;}
 for(const p of Object.values(players)){
 if(!p.alive||Date.now()<p.invulnUntil)continue;
-if(inBushNear(p.x,p.y,PLAYER_R))continue;
+/* 草丛只隐藏显示，不免疫伤害：隐身玩家仍可被怪物命中 */
 if(Math.hypot(p.x-s.x,p.y-s.y)<PLAYER_R+5){
 monsterHurt(p,s.dmg,Date.now());
 dead=true;break;
@@ -3837,7 +3821,7 @@ if(dead)break;
 for(const q of Object.values(players)){
 if(q.id===b.owner||!q.alive)continue;
 if(now<q.invulnUntil||q.ghostUntil>now)continue;
-if(inBushNear(q.x,q.y,PLAYER_R))continue;
+/* 草丛只隐藏显示，不免疫伤害：隐身玩家仍可被子弹命中 */
 if(Math.hypot(q.x-b.x,q.y-b.y)<PLAYER_R+3){
 const p=players[b.owner];
 const dmg=Math.round(b.dmg*(1-((q.armor||0)+(q.extraArmor||0))));
@@ -4372,7 +4356,7 @@ if(isHost){
 window.__extractedDone=false;
 if(window.__leaveBtn)window.__leaveBtn.style.display='none';
 newRound();
-broadcast({type:'roundStart',endTs:roundEndAt,meX:Math.round(me.x),meY:Math.round(me.y),mode:gameMode,exX:EX_X,exY:EX_Y,exActiveAt:extractActiveAt});
+broadcast({type:'roundStart',endTs:roundEndAt,meX:Math.round(me.x),meY:Math.round(me.y),mode:gameMode,exX:EX_X,exY:EX_Y,exActiveAt:extractActiveAt,map:serializeMap()});
 $('result').style.display='none';
 uiLog('新一局开始！');
 }
