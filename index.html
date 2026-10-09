@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>大地图探险 v10.28 · 撤离模式</title>
+<title>大地图探险 v10.29 · 撤离模式</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233a271c'/%3E%3Cpath d='M8 22 L16 8 L24 22 Z' fill='%23d99a5b'/%3E%3Ccircle cx='16' cy='20' r='3' fill='%23ffd25e'/%3E%3C/svg%3E" />
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -1448,10 +1448,10 @@ $('invList').innerHTML=html;
 }
 window.buyItem=buyItem;window.equipItem=equipItem;window.unequipSlot=unequipSlot;
 /* 计算装备带来的局内加成 */
-function equippedBonuses(){
+function bonusesFromEquip(eq){
 const b={weapon:'pistol',armor:0,dmgMul:1,spdMul:1,extraArmor:0};
-for(const slot in myEquip){
-const it=SHOP_ITEMS.find(i=>i.id===myEquip[slot]);
+for(const slot in eq){
+const it=SHOP_ITEMS.find(i=>i.id===eq[slot]);
 if(!it)continue;
 if(it.weapon)b.weapon=it.weapon;
 if(it.armor)b.armor=Math.max(b.armor,it.armor);
@@ -1463,6 +1463,12 @@ if(it.dmg&&it.slot==='accessory')b.dmgMul*=it.dmg; /* 只有配件(弹匣/穿甲
 const totalArmor=Math.min(.98,(b.armor||0)+(b.extraArmor||0));
 b.armor=totalArmor;b.extraArmor=0;
 return b;
+}
+function equippedBonuses(){return bonusesFromEquip(myEquip);}
+/* 房主权威：把装备加成写入玩家战斗属性（减伤/伤害倍率/速度），任何端的玩家都一致生效 */
+function applyEquipBonuses(p){
+const b=bonusesFromEquip(p.equip||{});
+p.armor=b.armor;p.extraArmor=0;p.dmgMul=b.dmgMul;p.spdMul=b.spdMul;
 }
 let extractProg={}; /* 房主：每玩家已撤离秒数 */
 let myKillStreak=0;   /* 连杀计数 */
@@ -1604,6 +1610,7 @@ color:COLORS.includes(msg.color)?msg.color:COLORS[Math.floor(Math.random()*COLOR
 x:s.x,y:s.y,rx:s.x,ry:s.y,score:0,hp:MAX_HP,alive:true,weapon:msg.weapon||'pistol',invulnUntil:0,boostUntil:0,ghostUntil:0,
 extracted:false,fx:0,fy:0,phase:Math.random()*6.28,deadUntil:0,kills:0,pid:msg.pid||'',revives:REVIVE_MAX,
 bigGold:0,looted:[],equip:msg.equip||{}};
+applyEquipBonuses(p); /* 房主权威：加入玩家的护甲减伤/伤害/速度立即生效 */
 /* 合并对方战绩进排行榜 */
 if(msg.pid)mergeIntoBoard(msg.pid,p.name,p.color,msg.coins||0,msg.kills||0);
 broadcast({type:'sys',text:p.name+' 加入了游戏'});
@@ -1650,6 +1657,7 @@ broadcast({type:'sys',text:p.name+' 换下了 '+oi.nm+'，掉在原地'});
 }
 }
 p.equip[slot]=it.itemId;
+applyEquipBonuses(p); /* 局内拾取/更换装备后立即重算减伤等属性 */
 }
 broadcast({type:'sys',text:p.name+' 捡到了装备：'+it.itemName});
 }
@@ -1753,7 +1761,16 @@ for(const k in players){if(!seen[k]&&k!==myPeerId)delete players[k];}
 }else if(msg.type==='join'){
 players={};
 for(const p of msg.players){
-if(p.id===myPeerId)continue;
+if(p.id===myPeerId){
+/* 以房主权威快照校正自己：坐标/血量/武器/装备/复活次数完全一致，杜绝出生点漂移与状态不一致 */
+if(me){
+if(Number.isFinite(p.x)&&Number.isFinite(p.y)){me.x=p.x;me.y=p.y;me.rx=p.x;me.ry=p.y;}
+me.hp=p.hp;me.alive=p.alive;me.score=p.score;me.revives=(typeof p.revives==='number'?p.revives:me.revives);
+if(p.weapon)me.weapon=p.weapon;
+if(p.equip){me.equip=p.equip;const b=bonusesFromEquip(p.equip);me.armor=b.armor;me.dmgMul=b.dmgMul;me.spdMul=b.spdMul;}
+}
+continue;
+}
 players[p.id]={id:p.id,name:p.name,color:p.color,x:p.x,y:p.y,rx:p.x,ry:p.y,score:p.score,hp:p.hp,
 alive:p.alive,weapon:p.weapon,invulnUntil:p.invulnUntil,boostUntil:p.boostUntil,ghostUntil:p.ghostUntil,
 extracted:p.extracted,fx:p.fx||0,fy:p.fy||0,phase:Math.random()*6.28,revives:p.revives};
@@ -2023,6 +2040,9 @@ try{myEquip=loadEquip();}catch(e){}
 hallStart(); /* 回到主菜单：重新订阅在线大厅 */
 }
 function showGame(){
+/* 进入对局强制关闭登录层与所有模态，杜绝全屏遮罩卡住按钮 */
+const idp=$('idSetup');if(idp)idp.style.display='none';
+document.querySelectorAll('.overlay').forEach(o=>{if(o.id!=='hud')o.style.display='none';});
 $('menu').style.display='none';$('hud').style.display='flex';$('hpWrap').style.display='block';$('equipBar').style.display='block';
 $('timer').style.display='block';$('coinsHud').style.display='block';$('weaponHud').style.display='block';
 $('board').style.display='block';$('emoteBar').style.display='flex';
@@ -2258,6 +2278,7 @@ if(isHost)broadcastItems();
 if(isHost&&safes.length)broadcastSafes();
 }
 function createRoom(){
+if($('idSetup')&&$('idSetup').style.display!=='none'){toastTop('请先登录或注册账号');return;}
 rebuildMap(); /* 强制重新生成地图：清除本地残留的上局门锁/屋顶/物资状态 */
 cleanupPeer();
 isHost=true;
@@ -2305,6 +2326,7 @@ tryCreate();
 let joining=false;
 let joinRetry=0;
 function joinRoom(code){
+if($('idSetup')&&$('idSetup').style.display!=='none'){toastTop('请先登录或注册账号');return;}
 if(joining)return;joining=true;
 rebuildMap(); /* 强制重新生成地图：加入房间前清掉本地残留的上局门锁/屋顶/物资状态 */
 cleanupPeer();isHost=false;
@@ -2342,7 +2364,11 @@ hallStop(); /* 进游戏后停止大厅订阅 */
 hostConn.send({type:'hello',name:myName,color:myColor,pid:myPid,coins:stats.coins,kills:stats.kills,equip:Object.assign({},myEquip),weapon:(equippedBonuses().weapon)||'pistol'});
 });
 hostConn.on('data',d=>handleHostData(d));
-hostConn.on('close',()=>{uiLog('与房主断开连接');resetToMenu();});
+hostConn.on('close',()=>{
+/* 房主真正离开（关闭页面/退出）才会触发；房主死亡或撤离后仍在观战、权威继续，不会断线 */
+toastTop('房主已离开房间，本局结束');
+uiLog('与房主断开连接');resetToMenu();
+});
 hostConn.on('error',()=>{uiLog('连接出错');resetToMenu();});
 });
 peer.on('error',e=>{
@@ -2525,8 +2551,11 @@ return {dx:1,dy:0};
 function monsterHurt(p,dmg,now,deathText){
 if(!p.alive||now<p.invulnUntil)return false;
 /* 草丛只隐藏显示，不免疫伤害：隐身玩家仍可被怪物命中 */
-p.hp-=dmg;p.invulnUntil=now+2000;
-broadcast({type:'hit',target:p.id,from:-1,dmg});
+/* 护甲减伤：与玩家子弹同一套公式，衣甲+头盔合计封顶 98%，最低掉 1 血 */
+const armor=Math.min(.98,(p.armor||0)+(p.extraArmor||0));
+const real=Math.max(1,Math.round(dmg*(1-armor)));
+p.hp-=real;p.invulnUntil=now+2000;
+broadcast({type:'hit',target:p.id,from:-1,dmg:real});
 if(p.hp<=0){
 p.hp=0;p.alive=false;
 p.revives=(p.revives||REVIVE_MAX)-1;
@@ -2816,14 +2845,14 @@ $('btnAgain').style.display=isHost?'block':'none';
 $('result').style.display='flex';
 }
 /* ============ 画布 & 预渲染地形 ============ */
-let W=innerWidth,H=innerHeight,camX=0,camY=0;
+let W=innerWidth,H=innerHeight,camX=0,camY=0,DPR=1;
 function resize(){
 W=document.documentElement.clientWidth||innerWidth;
 H=document.documentElement.clientHeight||innerHeight;
-const dpr=Math.min(2,window.devicePixelRatio||1);
-canvas.width=W*dpr;canvas.height=H*dpr;
+DPR=Math.min(2,window.devicePixelRatio||1);
+canvas.width=Math.max(1,W*DPR);canvas.height=Math.max(1,H*DPR);
 canvas.style.width=W+'px';canvas.style.height=H+'px';
-ctx.setTransform(dpr,0,0,dpr,0,0);
+ctx.setTransform(DPR,0,0,DPR,0,0);
 }
 addEventListener('resize',resize);
 if(window.visualViewport)window.visualViewport.addEventListener('resize',resize);
@@ -2906,12 +2935,14 @@ g.beginPath();g.ellipse(25,40,20,6,0,0,6.28);g.fill();
 return c;
 })();
 function drawTile(tx,ty){
-const g=grid[ty][tx];
-const variants=TILE_VARIANTS[g]||TILE_VARIANTS[0];
+if(!Number.isFinite(tx)||!Number.isFinite(ty)||tx<0||ty<0||tx>=MAP_W||ty>=MAP_H)return;
+const row=grid[ty]; if(!row)return;
+const g=row[tx]; if(g===undefined||!TILE_VARIANTS[g])return;
+const variants=TILE_VARIANTS[g];
 const h=(tx*73856093^ty*19349663);
 const idx=((h%variants.length)+variants.length)%variants.length;
 ctx.drawImage(variants[idx],tx*TILE,ty*TILE);
-if(bushes[ty][tx])ctx.drawImage(BUSH_CANVAS,tx*TILE,ty*TILE);
+if(bushes[ty]&&bushes[ty][tx])ctx.drawImage(BUSH_CANVAS,tx*TILE,ty*TILE);
 }
 function drawItem(it,ts){
 if(it.taken)return;
@@ -3268,11 +3299,18 @@ ctx.strokeText('倒计时 '+sec+'s',EX_X,EX_Y-EXTRACT_R+16);ctx.fillText('倒计
 }
 }
 function drawScene(ts){
+/* 每帧硬重置变换：上一帧任何异常都不会累积成空白画面 */
+ctx.setTransform(DPR,0,0,DPR,0,0);
+ctx.globalAlpha=1;ctx.shadowBlur=0;
 ctx.clearRect(0,0,W,H);
 if(!me)return;
-const tgtX=clamp(me.x-W/2,0,Math.max(0,WORLD_W-W)),tgtY=clamp(me.y-H/2,0,Math.max(0,WORLD_H-H));
+/* 坐标异常自愈：相机/角色坐标一旦是 NaN/Infinity，拉回有效出生点，杜绝整屏空白 */
+if(!Number.isFinite(me.x)||!Number.isFinite(me.y)){const s=spawnPos();me.x=me.rx=s.x;me.y=me.ry=s.y;me.fx=0;me.fy=1;}
+let tgtX=clamp(me.x-W/2,0,Math.max(0,WORLD_W-W)),tgtY=clamp(me.y-H/2,0,Math.max(0,WORLD_H-H));
+if(!Number.isFinite(tgtX))tgtX=0;if(!Number.isFinite(tgtY))tgtY=0;
 camX=tgtX;camY=tgtY;
 ctx.save();
+try{
 if(shake>0&&shakeEnabled&&!ecoMode){ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.88;if(shake<.4)shake=0;}
 ctx.translate(-camX,-camY);
 const t0x=Math.floor(camX/TILE)-1,t1x=Math.ceil((camX+W)/TILE)+1;
@@ -3285,24 +3323,24 @@ drawExtraction(ts);
 for(const s of safes){
 if(s.opened)continue;
 if(s.x<camX-60||s.x>camX+W+60||s.y<camY-60||s.y>camY+H+60)continue;
-drawSafe(s,ts);
+try{drawSafe(s,ts);}catch(e){}
 }
 for(const it of items){
 if(it.taken)continue;
 if(it.x<camX-40||it.x>camX+W+40||it.y<camY-40||it.y>camY+H+40)continue;
-drawItem(it,ts);
+try{drawItem(it,ts);}catch(e){}
 }
 for(const m of monsters){
 if(m.x<camX-80||m.x>camX+W+80||m.y<camY-80||m.y>camY+H+80)continue;
-drawMonster(m,ts);
+try{drawMonster(m,ts);}catch(e){}
 }
 /* 子弹与怪物弹丸（绘制已移到遮罩之后，保证暗夜模式下弹道可见） */
 for(const p of Object.values(players)){
 if(p.id===myPeerId)continue;
 if(p.x<camX-120||p.x>camX+W+120||p.y<camY-120||p.y>camY+H+120)continue;
-drawPlayer(p,false,ts);
+try{drawPlayer(p,false,ts);}catch(e){console.error('[drawPlayer]',p&&p.id,e);}
 }
-drawParts();
+try{drawParts();}catch(e){}
 /* 房区屋顶：没进去过的房间盖上屋顶，看不到内部（含玩家/物资/保险箱）；进入过的一直透明 */
 if(me){
 const myRoom=inRoom(me.x,me.y);
@@ -3350,9 +3388,14 @@ ctx.fillText('门',dx,dy+3);
 }
 }
 }
+}catch(err){
+/* 地形段任何单点异常都不再拖垮整帧/累积变换；打印一次便于定位 */
+if(window.__gErr!==String(err)){window.__gErr=String(err);console.error('[drawScene]',err);}
+}finally{
 ctx.restore();
+}
 /* 自己画在屏幕正中心（撤离后画半透明幽灵） */
-if(me)drawMyself(ts);
+try{ if(me)drawMyself(ts);}catch(e){console.error('[drawMyself]',e);}
 /* ===== 昼夜循环（普通模式：白天→黄昏→夜晚→黎明，氛围遮罩；暗夜模式固定全暗） ===== */
 if(!isNightMode()&&me&&roundEndAt){
 const el=Math.min(1,Math.max(0,(ROUND_MS-(roundEndAt-Date.now()))/ROUND_MS));
@@ -3824,7 +3867,8 @@ if(now<q.invulnUntil||q.ghostUntil>now)continue;
 /* 草丛只隐藏显示，不免疫伤害：隐身玩家仍可被子弹命中 */
 if(Math.hypot(q.x-b.x,q.y-b.y)<PLAYER_R+3){
 const p=players[b.owner];
-const dmg=Math.round(b.dmg*(1-((q.armor||0)+(q.extraArmor||0))));
+const armor=Math.min(.98,(q.armor||0)+(q.extraArmor||0));
+const dmg=Math.max(1,Math.round(b.dmg*(1-armor)));
 q.hp-=dmg;
 broadcast({type:'hit',target:q.id,from:b.owner,dmg});
 burst(q.x,q.y,'#ff6b6b',10,110);
@@ -3966,11 +4010,12 @@ lastSend=ts;
 hostConn.send({type:'pos',x:Math.round(me.x),y:Math.round(me.y),fx:Math.round(me.fx*100)/100,fy:Math.round(me.fy*100)/100});
 }
 }
-stepMonsters(dt);
-stepHostBullets(dt);
-stepRoundHost(dt);
-stepParts(dt);
-drawScene(ts);
+/* 逻辑更新与绘制隔离：任何一步逻辑抛错都不阻断本帧绘制，杜绝画面冻结/全屏变亮 */
+try{ stepMonsters(dt); }catch(e){console.error('[stepMonsters]',e);}
+try{ stepHostBullets(dt); }catch(e){console.error('[stepHostBullets]',e);}
+try{ stepRoundHost(dt); }catch(e){console.error('[stepRoundHost]',e);}
+try{ stepParts(dt); }catch(e){console.error('[stepParts]',e);}
+try{ drawScene(ts); }catch(e){console.error('[drawScene outer]',e);}
 /* HUD 更新 */
 if(inGame){
 $('hpFill').style.width=Math.max(0,(me?me.hp:0))+'%';
