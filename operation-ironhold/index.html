@@ -325,7 +325,7 @@
   }
   .tbtn:active{background:rgba(255,179,64,.28);border-color:rgba(255,179,64,.7);}
   .tbtn .sub{display:block;font-size:clamp(7px,1.1vw,9px);font-weight:600;color:rgba(223,230,236,.5);letter-spacing:.08em;}
-  #joyZone{position:absolute;left:0;bottom:0;width:48%;height:58%;pointer-events:auto;touch-action:none;}
+  #joyZone{position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:auto;touch-action:none;}
   #joyBase{
     position:absolute;left:clamp(40px,8vw,80px);bottom:clamp(52px,15vh,74px);
     width:clamp(96px,14vw,124px);height:clamp(96px,14vw,124px);border-radius:50%;
@@ -361,6 +361,37 @@
     width:clamp(40px,5.8vw,54px);height:clamp(40px,5.8vw,54px);font-size:clamp(9px,1.5vw,12px);z-index:6;}
   #touchPause{right:clamp(10px,1.8vw,16px);top:clamp(10px,1.8vw,16px);
     width:clamp(40px,5.2vw,48px);height:clamp(40px,5.2vw,48px);font-size:clamp(13px,2vw,16px);z-index:6;}
+
+  /* 自定义触控布局编辑层 */
+  #layoutEdit{
+    position:absolute;inset:0;z-index:90;display:none;flex-direction:column;touch-action:none;
+    background:rgba(4,6,9,.86);font-family:inherit;
+  }
+  #layoutEdit.open{display:flex;}
+  #layoutEdit .le-top{
+    display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+    color:rgba(223,230,236,.85);font-size:clamp(12px,2vw,15px);font-weight:700;letter-spacing:.12em;
+  }
+  #layoutEdit .le-top small{display:block;font-size:clamp(9px,1.5vw,11px);font-weight:400;color:rgba(223,230,236,.55);letter-spacing:.05em;margin-top:3px;}
+  #layoutEdit #leStage{flex:1;position:relative;overflow:hidden;}
+  #layoutEdit .le-item{
+    position:absolute;width:clamp(64px,9vw,86px);height:clamp(64px,9vw,86px);border-radius:50%;
+    display:flex;align-items:center;justify-content:center;touch-action:none;
+    background:rgba(255,179,64,.10);border:1.5px dashed rgba(255,179,64,.55);
+    color:#ffd9a0;font-size:clamp(10px,1.7vw,13px);font-weight:700;letter-spacing:.04em;
+    transform:translate(-50%,-50%);user-select:none;-webkit-user-select:none;cursor:grab;
+  }
+  #layoutEdit .le-item.drag{cursor:grabbing;background:rgba(255,179,64,.24);border-style:solid;}
+  #layoutEdit .le-item.le-joy{
+    width:clamp(96px,14vw,124px);height:clamp(96px,14vw,124px);
+    background:rgba(223,230,236,.08);border:1.5px dashed rgba(223,230,236,.45);color:rgba(223,230,236,.8);
+  }
+  #layoutEdit .le-bottom{
+    display:flex;align-items:center;gap:12px;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));
+    color:rgba(223,230,236,.7);font-size:clamp(10px,1.6vw,12px);
+  }
+  #layoutEdit .le-bottom input[type=range]{flex:1;}
+  #layoutEdit .le-bottom .miniBtn{padding:8px 16px;font-size:11px;letter-spacing:.1em;}
 
   /* 通用小按钮（开始/暂停界面） */
   .miniBtn{
@@ -562,7 +593,7 @@
       <div class="row">
         <div class="lbl">画质预设<small>分辨率缩放 · 抗锯齿 · 阴影综合档位</small></div>
         <div class="seg" id="segQuality">
-          <b data-q="low">流畅</b><b data-q="medium">均衡</b><b data-q="high">高清</b>
+          <b data-q="low">流畅</b><b data-q="medium">均衡</b><b data-q="high">高清</b><b data-q="ultra">极致</b>
         </div>
       </div>
       <div class="row">
@@ -611,6 +642,10 @@
       <div class="dsc" style="margin-bottom:8px;">点击某一项，再按下要绑定的键盘按键或鼠标键。ESC 取消绑定。</div>
       <div id="keyRows"></div>
       <div class="note" id="touchKeyNote" style="display:none;">触屏模式：左摇杆移动，右侧拖动转视角；推满摇杆自动疾跑。可在「画面」页调整触屏灵敏度。</div>
+      <div id="touchLayoutRow" style="display:none;margin-top:10px;">
+        <button class="miniBtn" id="layoutEditBtn" style="letter-spacing:.08em;">调整触控布局</button>
+        <div class="note" style="margin-top:6px;">拖动按钮调整位置，下方滑杆整体缩放大小；摇杆同样可拖动。</div>
+      </div>
     </div>
 
     <div class="foot">
@@ -624,6 +659,19 @@
   <div class="ic">🔄</div>
   <div class="t">请横屏游玩</div>
   <div class="s">本游戏为横向 FPS，竖屏体验不佳</div>
+</div>
+
+<div id="layoutEdit">
+  <div class="le-top">
+    <div>自定义触控布局<small>拖动按钮调整位置 · 底部滑杆整体缩放 · 完成后自动保存</small></div>
+    <button class="miniBtn" id="leDone">完成</button>
+  </div>
+  <div id="leStage"></div>
+  <div class="le-bottom">
+    <span>按钮大小</span>
+    <input type="range" id="leScale" min="70" max="170" value="100">
+    <button class="miniBtn" id="leReset">恢复默认布局</button>
+  </div>
 </div>
 
 <div id="boot">正在装载武器…</div>
@@ -1051,7 +1099,7 @@ const SFX = (function(){
    ========================================================================= */
 const canvas   = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, powerPreference:'high-performance', stencil:false });
-let DPR = Math.min(window.devicePixelRatio||1, 1.5);
+let DPR = Math.min(window.devicePixelRatio||1, SETTINGS.quality==='ultra'?2.0:(SETTINGS.quality==='high'?1.5:(SETTINGS.quality==='medium'?1.25:1.0)));
 let MSAA_SAMPLES = 4;
 renderer.setPixelRatio(DPR);
 renderer.setSize(innerWidth, innerHeight);
@@ -1590,7 +1638,7 @@ scene.add(new THREE.HemisphereLight(0xa6bacd, 0x6f6450, 0.74));
 const sun = new THREE.DirectionalLight(0xffdcae, 2.35);
 sun.position.copy(SUN_DIR).multiplyScalar(92);
 sun.castShadow = true;
-let SHADOW_RES = SETTINGS.quality==='high' ? 2048 : (SETTINGS.quality==='medium' ? 1024 : 512);
+let SHADOW_RES = SETTINGS.quality==='ultra'?4096:(SETTINGS.quality==='high'?2048:(SETTINGS.quality==='medium'?1024:512));
 sun.shadow.mapSize.set(SHADOW_RES,SHADOW_RES);
 sun.shadow.camera.near = 24;
 sun.shadow.camera.far  = 230;
@@ -6777,15 +6825,16 @@ UI.boot.classList.add('hide');
    21.5 中文移动版初始化：画质应用 / 设置菜单 / 触控 / 横屏引导
    ========================================================================= */
 function applyGraphics(){
-  DPR = Math.min(window.devicePixelRatio||1, SETTINGS.quality==='high'?1.5:(SETTINGS.quality==='medium'?1.25:1.0));
+  const Q = SETTINGS.quality;
+  DPR = Math.min(window.devicePixelRatio||1, Q==='ultra'?2.0:(Q==='high'?1.5:(Q==='medium'?1.25:1.0)));
   renderer.setPixelRatio(DPR);
-  MSAA_SAMPLES = SETTINGS.quality==='high'?4:(SETTINGS.quality==='medium'?2:0);
-  SHADOW_RES = SETTINGS.quality==='high'?2048:(SETTINGS.quality==='medium'?1024:512);
+  MSAA_SAMPLES = Q==='ultra'?8:(Q==='high'?4:(Q==='medium'?2:0));
+  SHADOW_RES = Q==='ultra'?4096:(Q==='high'?2048:(Q==='medium'?1024:512));
   renderer.shadowMap.enabled = SETTINGS.shadows;
   renderer.shadowMap.needsUpdate = true;
   sun.shadow.mapSize.set(SHADOW_RES,SHADOW_RES);
   if (sun.shadow.map) sun.shadow.map.dispose();
-  adaptive.setFloor(SETTINGS.quality==='high'?1:(SETTINGS.quality==='medium'?3:4));
+  adaptive.setFloor(Q==='ultra'?1:(Q==='high'?1:(Q==='medium'?3:4)));
   adaptive.reset();
 }
 
@@ -6959,9 +7008,12 @@ joyZone.addEventListener('touchstart', e=>{
   e.preventDefault();
   const t = e.changedTouches[0];                 // 多点触控：只认落在摇杆区的新触点
   if (!t) return;
-  joy.active=true; joy.id=t.identifier;
   const r = joyBase.getBoundingClientRect();
-  joy.baseX = r.left + r.width/2; joy.baseY = r.top + r.height/2;
+  const cx = r.left + r.width/2, cy = r.top + r.height/2;
+  const hitR = r.width*0.62 + 46;                // 摇杆可激活半径（跟随自定义布局位置）
+  if (Math.hypot(t.clientX-cx, t.clientY-cy) > hitR) return;
+  joy.active=true; joy.id=t.identifier;
+  joy.baseX = cx; joy.baseY = cy;
   joy.cx = t.clientX - joy.baseX; joy.cy = t.clientY - joy.baseY;
   joyMoveTo();
 }, {passive:false});
@@ -7001,9 +7053,30 @@ lookArea.addEventListener('touchend', lookEnd, {passive:true});
 lookArea.addEventListener('touchcancel', lookEnd, {passive:true});
 
 /* 按钮 */
-$('fireBtn').addEventListener('touchstart', e=>{ e.preventDefault(); if (G.running){ player.triggerHeld=true; player.clickBuf=0.12; } }, {passive:false});
-$('fireBtn').addEventListener('touchend',   e=>{ e.preventDefault(); player.triggerHeld=false; player.triggerReleased=true; }, {passive:false});
-$('fireBtn').addEventListener('touchcancel',e=>{ player.triggerHeld=false; player.triggerReleased=true; }, {passive:false});
+let fireTouchId=null, fireLastX=null, fireLastY=null;   // 开火键触摸：按住滑动实现"压枪"（开火时拖视角）
+$('fireBtn').addEventListener('touchstart', e=>{
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  if (t){ fireTouchId = t.identifier; fireLastX = t.clientX; fireLastY = t.clientY; }
+  if (G.running){ player.triggerHeld=true; player.clickBuf=0.12; }
+}, {passive:false});
+$('fireBtn').addEventListener('touchmove', e=>{
+  e.preventDefault();
+  if (!G.running) return;
+  const t = [...e.touches].find(x=>x.identifier===fireTouchId);
+  if (!t) return;
+  if (fireLastX!==null){
+    mouseDX += (t.clientX - fireLastX)*1.6;          // 按住开火时滑动 → 压枪拖视角
+    mouseDY += (t.clientY - fireLastY)*1.6;
+  }
+  fireLastX = t.clientX; fireLastY = t.clientY;
+}, {passive:false});
+$('fireBtn').addEventListener('touchend', e=>{
+  e.preventDefault();
+  if (fireTouchId!==null && ![...e.touches].some(x=>x.identifier===fireTouchId)){ fireTouchId=null; fireLastX=null; fireLastY=null; }
+  player.triggerHeld=false; player.triggerReleased=true;
+}, {passive:false});
+$('fireBtn').addEventListener('touchcancel', e=>{ fireTouchId=null; fireLastX=null; fireLastY=null; player.triggerHeld=false; player.triggerReleased=true; }, {passive:false});
 $('adsBtn').addEventListener('touchstart', e=>{ e.preventDefault(); if (G.running) toggleADS(); }, {passive:false});
 $('jumpBtn').addEventListener('touchstart', e=>{ e.preventDefault(); keys['Space']=true; player.spaceEdge=true; }, {passive:false});
 $('jumpBtn').addEventListener('touchend',   e=>{ e.preventDefault(); keys['Space']=false; }, {passive:false});
@@ -7023,6 +7096,101 @@ $('sprintBtn').addEventListener('touchcancel',()=>{ touchSprint=false; keys['Shi
 $('switchBtn').addEventListener('touchstart', e=>{ e.preventDefault(); if (G.running) switchWeapon((player.weapon+1)%WEAPONS.length); }, {passive:false});
 $('touchPause').addEventListener('touchstart', e=>{ e.preventDefault(); if (G.running) pauseGame(); }, {passive:false});
 
+/* ---------- 自定义触控布局（位置 % + 整体缩放，持久化） ---------- */
+const LAYOUT_KEY='op-ironhold-cn-layout';
+const LAYOUT_DEF={
+  fireBtn:{x:92,y:67},adsBtn:{x:81,y:64},jumpBtn:{x:69,y:64},reloadBtn:{x:94,y:46},
+  modeBtn:{x:85,y:46},crouchBtn:{x:67,y:46},sprintBtn:{x:78,y:84},switchBtn:{x:61,y:46},
+  touchPause:{x:96,y:9},joyBase:{x:15,y:70}
+};
+const LAYOUT_LABEL={fireBtn:'开火',adsBtn:'机瞄',jumpBtn:'跳跃',reloadBtn:'换弹',modeBtn:'模式',
+  crouchBtn:'蹲下',sprintBtn:'疾跑',switchBtn:'切枪',touchPause:'暂停',joyBase:'摇杆'};
+let TOUCH_LAYOUT=null;
+function loadLayout(){
+  const def = JSON.parse(JSON.stringify(LAYOUT_DEF));
+  try{ return Object.assign(def, JSON.parse(localStorage.getItem(LAYOUT_KEY)||'{}')); }
+  catch(e){ return def; }
+}
+function saveLayout(){ try{ localStorage.setItem(LAYOUT_KEY, JSON.stringify(TOUCH_LAYOUT)); }catch(e){} }
+function applyTouchLayout(){
+  if (!TOUCH_LAYOUT) TOUCH_LAYOUT = loadLayout();
+  for (const id in TOUCH_LAYOUT){
+    const el = document.getElementById(id); if (!el) continue;
+    const p = TOUCH_LAYOUT[id];
+    if (p.x!==undefined && p.y!==undefined){
+      el.style.left = p.x+'%'; el.style.top = p.y+'%';
+      el.style.right='auto'; el.style.bottom='auto';
+      el.style.transform = 'translate(-50%,-50%)'+(p.s&&p.s!==1 ? ' scale('+p.s+')' : '');
+    }
+  }
+}
+const leLayer=$('layoutEdit'), leStage=$('leStage'), leScale=$('leScale');
+function positionLeItem(it,p){
+  it.style.left=p.x+'%'; it.style.top=p.y+'%';
+  it.style.transform='translate(-50%,-50%)'+(p.s&&p.s!==1 ? ' scale('+p.s+')' : '');
+}
+function buildLayoutStage(){
+  leStage.innerHTML='';
+  for (const id in TOUCH_LAYOUT){
+    const p=TOUCH_LAYOUT[id];
+    const it=document.createElement('div');
+    it.className='le-item'+(id==='joyBase' ? ' le-joy' : '');
+    it.dataset.id=id;
+    it.textContent=LAYOUT_LABEL[id]||id;
+    positionLeItem(it,p);
+    leStage.appendChild(it);
+  }
+}
+let leDrag=null;
+leStage.addEventListener('pointerdown', e=>{
+  const it=e.target.closest('.le-item'); if (!it) return;
+  leDrag={id:it.dataset.id, px:e.clientX, py:e.clientY};
+  it.setPointerCapture(e.pointerId);
+  it.classList.add('drag');
+  e.preventDefault();
+}, {passive:false});
+leStage.addEventListener('pointermove', e=>{
+  if (!leDrag) return;
+  const it=document.querySelector('.le-item[data-id="'+leDrag.id+'"]'); if (!it) return;
+  const p=TOUCH_LAYOUT[leDrag.id];
+  p.x=clamp(p.x+(e.clientX-leDrag.px)/innerWidth*100, 5, 95);
+  p.y=clamp(p.y+(e.clientY-leDrag.py)/innerHeight*100, 6, 94);
+  positionLeItem(it,p);
+  leDrag.px=e.clientX; leDrag.py=e.clientY;
+}, {passive:false});
+leStage.addEventListener('pointerup', ()=>{
+  if (leDrag){ saveLayout(); leDrag=null; }
+  document.querySelectorAll('.le-item').forEach(x=>x.classList.remove('drag'));
+});
+leStage.addEventListener('pointercancel', ()=>{
+  if (leDrag){ saveLayout(); leDrag=null; }
+  document.querySelectorAll('.le-item').forEach(x=>x.classList.remove('drag'));
+});
+function openLayoutEdit(){
+  TOUCH_LAYOUT=loadLayout();
+  leScale.value=Math.round((TOUCH_LAYOUT.fireBtn.s||1)*100);
+  buildLayoutStage();
+  leLayer.classList.add('open');
+}
+$('layoutEditBtn').addEventListener('click', ()=>{ closeSettings(); openLayoutEdit(); });
+$('leDone').addEventListener('click', ()=>{
+  saveLayout(); applyTouchLayout(); leLayer.classList.remove('open');
+  openSettings();
+});
+$('leReset').addEventListener('click', ()=>{
+  try{ localStorage.removeItem(LAYOUT_KEY); }catch(e){}
+  TOUCH_LAYOUT=loadLayout();
+  leScale.value=100;
+  buildLayoutStage();
+  applyTouchLayout();
+});
+leScale.addEventListener('input', ()=>{
+  const s=+leScale.value/100;
+  for (const id in TOUCH_LAYOUT){ TOUCH_LAYOUT[id].s=s; positionLeItem(leStage.querySelector('.le-item[data-id="'+id+'"]'), TOUCH_LAYOUT[id]); }
+  saveLayout();
+});
+if (IS_TOUCH){ $('touchLayoutRow').style.display='block'; }
+
 /* 启动应用设置 */
 applyGraphics();
 SFX.setVolume(SETTINGS.volume/100);
@@ -7031,6 +7199,7 @@ buildKeyRows();
 refreshSettingsUI();
 updateRotate();
 addEventListener('resize', updateRotate);
+applyTouchLayout();
 
 function frame(now){
   requestAnimationFrame(frame);
