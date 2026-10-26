@@ -1116,7 +1116,7 @@ const FOG_COLOR = 0xa39b8d;
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(FOG_COLOR, 0.0074);
 
-const BASE_FOV = 75;
+const BASE_FOV = 88;
 /* Near at 0.06 against a 400 far gives a 6700:1 depth range and the far side of
    the yard starts to shimmer where two surfaces nearly meet. Nothing solid ever
    gets within the player's 0.36 collision radius and the gun renders in its own
@@ -4402,7 +4402,7 @@ const WEAPONS = [
     /* 2.2x. At the old 55 this was 1.47x, which over the ranges this map
        actually plays at barely changed the picture — a man at 25 m stayed
        small enough to hide behind the optic housing. */
-    adsFov:38, adsSpread:0.42, adsTime:0.20, noise:36,
+    adsFov:38, adsSpread:0.42, adsTime:0.14, noise:36,
     shellBig:false, build:buildRifle },
   { id:'shotgun', name:'KS-12 霰弹枪', sound:'shotgun',
     magSize:8, reserve:48, maxReserve:48, damage:15, headMult:1.7,
@@ -4412,7 +4412,7 @@ const WEAPONS = [
     recoilKick:0.115, recoilRot:0.165, camPitch:0.040, camYaw:0.009, fovKick:2.6,
     reloadTime:2.75, drawTime:0.72, shakeAmt:0.68, range:60,
     falloffStart:7, falloffRange:16, falloffMin:0.20,
-    adsFov:60, adsSpread:0.72, adsTime:0.20, noise:40,
+    adsFov:60, adsSpread:0.72, adsTime:0.14, noise:40,
     shellBig:true, build:buildShotgun },
   { id:'pistol', name:'P-9 手枪', sound:'pistol',
     magSize:15, reserve:90, maxReserve:90, damage:35, headMult:2.0,
@@ -4422,7 +4422,7 @@ const WEAPONS = [
     recoilKick:0.048, recoilRot:0.090, camPitch:0.021, camYaw:0.006, fovKick:0.85,
     reloadTime:1.55, drawTime:0.30, shakeAmt:0.24, range:110,
     falloffStart:30, falloffRange:45, falloffMin:0.55,
-    adsFov:50, adsSpread:0.34, adsTime:0.20, noise:26,
+    adsFov:50, adsSpread:0.34, adsTime:0.14, noise:26,
     shellBig:false, build:buildPistol },
   { id:'sniper', name:'SR-7 长弓狙', sound:'sniper',
     magSize:5, reserve:25, maxReserve:25, damage:125, headMult:2.0,
@@ -4432,7 +4432,7 @@ const WEAPONS = [
     recoilKick:0.175, recoilRot:0.20, camPitch:0.055, camYaw:0.010, fovKick:2.2,
     reloadTime:3.10, drawTime:0.85, shakeAmt:0.80, range:220,
     falloffStart:220, falloffRange:1, falloffMin:1.0,
-    adsFov:15, adsSpread:0.012, adsTime:0.20, scope:true, noise:60,
+    adsFov:15, adsSpread:0.012, adsTime:0.14, scope:true, noise:60,
     shellBig:true, build:buildSniper }
 ];
 
@@ -5104,8 +5104,8 @@ function drawMinimap(){
    ========================================================================= */
 const keys = Object.create(null);
 let mouseDX=0, mouseDY=0;
-let SENS = 0.0022 * (SETTINGS.sens!=null ? SETTINGS.sens/100 : 1);
-function applySens(){ SENS = 0.0022 * (SETTINGS.sens!=null ? SETTINGS.sens/100 : 1); }
+let SENS = 0.0040 * (SETTINGS.sens!=null ? SETTINGS.sens/100 : 1);
+function applySens(){ SENS = 0.0040 * (SETTINGS.sens!=null ? SETTINGS.sens/100 : 1); }
 let sensScale = 1;              // shrinks with ADS zoom so aim stays 1:1 on screen
 
 /* 键位重绑定：把按下的物理键翻译成动作对应的“规范键位”写入 keys，
@@ -5358,7 +5358,7 @@ function fireWeapon(){
   player.burstIdle = 0;
   const vert  = n===0 ? 1.55 : (n<4 ? 1.12 : 0.82 + Math.sin(n*0.9)*0.10);
   const drift = Math.sin(n*0.62) * 0.85 + Math.sin(n*0.23+1.1) * 0.45;
-  player.recoilVelP += w.camPitch * 38 * vert;
+  player.recoilVelP += w.camPitch * 150 * vert;  // 三角洲式垂直后坐：单发约 1°，满匣 30° 需压枪
   player.recoilVelY += (drift + (Math.random()-0.5)*0.55) * w.camYaw * 38;
   player.shake = Math.min(1.4, player.shake + w.shakeAmt*0.5);
   player.fovKick = Math.min(3.2, player.fovKick + (w.fovKick||1.0));
@@ -6135,8 +6135,8 @@ function updateEnemy(e, dt){
 /* =========================================================================
    17. PLAYER UPDATE
    ========================================================================= */
-const WALK_SPEED=4.9, SPRINT_SPEED=7.9, CROUCH_SPEED=2.35;
-const ACCEL=64, AIR_ACCEL=11, FRICTION=11.5, GRAVITY=-19.5, JUMP_V=6.95;
+const WALK_SPEED=4.6, SPRINT_SPEED=7.6, CROUCH_SPEED=2.2;
+const ACCEL=52, AIR_ACCEL=10, FRICTION=10, GRAVITY=-19.5, JUMP_V=6.95;
 const DOUBLE_JUMP_V=6.05;         // second hop, slightly weaker than the first
 const BREATH_TIME=3.0;            // seconds of steady hold per breath
 /* a ledge this far above the feet can still be pulled up onto */
@@ -6181,20 +6181,24 @@ function startMantle(target){
 }
 
 function updatePlayer(dt){
-  /* ---- look ---- */
-  player.yaw   -= mouseDX*SENS*sensScale;
-  player.pitch -= mouseDY*SENS*sensScale;
-  player.pitch = clamp(player.pitch, -PI/2+0.02, PI/2-0.02);
+  /* ---- look（三角洲式平滑：输入进目标值，实际视角以阻尼跟追，消除生硬跳动） ---- */
+  if (player.yawTarget===undefined){ player.yawTarget = player.yaw; player.pitchTarget = player.pitch; }
+  player.yawTarget   -= mouseDX*SENS*sensScale;
+  player.pitchTarget -= mouseDY*SENS*sensScale;
+  player.pitchTarget = clamp(player.pitchTarget, -PI/2+0.02, PI/2-0.02);
+  const lookLambda = IS_TOUCH ? 24 : 34;        // 触屏稍缓更跟手，鼠标快速精确
+  player.yaw   = damp(player.yaw,   player.yawTarget,   lookLambda, dt);
+  player.pitch = damp(player.pitch, player.pitchTarget, lookLambda, dt);
   const swayInX = mouseDX, swayInY = mouseDY;
   mouseDX = mouseDY = 0;
 
-  /* recoil spring (partial auto-recovery) */
-  player.recoilVelP = damp(player.recoilVelP, 0, 16, dt);
-  player.recoilVelY = damp(player.recoilVelY, 0, 16, dt);
+  /* recoil spring（三角洲式：上抬干脆、松手快速回中，压枪更可控） */
+  player.recoilVelP = damp(player.recoilVelP, 0, 20, dt);
+  player.recoilVelY = damp(player.recoilVelY, 0, 20, dt);
   player.recoilPitch += player.recoilVelP*dt;
   player.recoilYaw   += player.recoilVelY*dt;
-  player.recoilPitch = damp(player.recoilPitch, 0, 6.5, dt);
-  player.recoilYaw   = damp(player.recoilYaw,   0, 6.5, dt);
+  player.recoilPitch = damp(player.recoilPitch, 0, 5.0, dt);  // 上抬有段落感、松手约 0.3s 回一半
+  player.recoilYaw   = damp(player.recoilYaw,   0, 7.0, dt);
 
   /* ---- aim down sights ---- */
   const wpn = WEAPONS[player.weapon];
@@ -6372,7 +6376,7 @@ function updatePlayer(dt){
   /* ---- head bob + footsteps ---- */
   const hSpeed = Math.hypot(player.vel.x, player.vel.z);
   const moving = hSpeed>0.6 && player.onGround;
-  player.bobAmp = damp(player.bobAmp, moving?clamp(hSpeed/WALK_SPEED,0,1.5):0, 9, dt);
+  player.bobAmp = damp(player.bobAmp, moving?clamp(hSpeed/WALK_SPEED,0,1.2):0, 9, dt);
   if (moving){
     const prev = player.stepPhase;
     player.stepPhase += dt*hSpeed*(player.crouch?1.05:1.42);
@@ -6388,9 +6392,9 @@ function updatePlayer(dt){
   player.landShake = damp(player.landShake, 0, 9, dt);
 
   /* ---- camera ---- */
-  const bobY = Math.sin(player.bob*2)*0.032*player.bobAmp;
-  const bobX = Math.sin(player.bob)*0.036*player.bobAmp;
-  const bobR = Math.sin(player.bob)*0.010*player.bobAmp;
+  const bobY = Math.sin(player.bob*2)*0.024*player.bobAmp;
+  const bobX = Math.sin(player.bob)*0.027*player.bobAmp;
+  const bobR = Math.sin(player.bob)*0.008*player.bobAmp;
   player.eye = damp(player.eye, player.height*0.92, 16, dt);
 
   const t = perfNow*0.001;
@@ -6408,14 +6412,14 @@ function updatePlayer(dt){
     player.pos.z + sX*0.5*steady
   );
   camera.rotation.set(
-    player.pitch + player.recoilPitch - player.landShake*0.10 - (player.mantleTilt||0)
-      + sY*0.6*steady + scopeSwayY,
+    clamp(player.pitch + player.recoilPitch - player.landShake*0.10 - (player.mantleTilt||0)
+      + sY*0.6*steady + scopeSwayY, -1.52, 1.52),
     player.yaw + player.recoilYaw + scopeSwayX,
     (bobR + sR)*steady + ((keys['KeyA']?0.014:0) - (keys['KeyD']?0.014:0))*steady
   );
 
   /* ---- fov ---- */
-  const hipFov = BASE_FOV + (player.sprint&&hSpeed>4.5 ? 7.5 : 0) + clamp(hSpeed-5,0,3)*0.6;
+  const hipFov = BASE_FOV + (player.sprint&&hSpeed>4.5 ? 6 : 0) + clamp(hSpeed-5,0,3)*0.45;
   fovCur = damp(fovCur, hipFov, 7, dt);
   /* the ADS blend rides on top of the damped hipfire value so the 0.2s ramp
      is exact rather than doubly smoothed */
@@ -7044,7 +7048,9 @@ lookArea.addEventListener('touchmove', e=>{
   if (!t) return;
   const dx = t.clientX - look.lastX, dy = t.clientY - look.lastY;
   look.lastX = t.clientX; look.lastY = t.clientY;
-  mouseDX += dx*1.6; mouseDY += dy*1.6;           // 与鼠标共用 SENS，1.6 为触屏手感系数
+  const dm = Math.hypot(dx,dy);
+  const curve = lerp(0.80, 1.25, clamp(dm/110, 0, 1));   // 三角洲式灵敏度曲线：慢拖更精准、快甩更跟手
+  mouseDX += dx*1.6*curve; mouseDY += dy*1.6*curve;      // 与鼠标共用 SENS，1.6 为触屏手感系数
 }, {passive:false});
 function lookEnd(e){
   if (look.id!==null && ![...e.touches].some(x=>x.identifier===look.id)) look.id=null;
@@ -7066,8 +7072,11 @@ $('fireBtn').addEventListener('touchmove', e=>{
   const t = [...e.touches].find(x=>x.identifier===fireTouchId);
   if (!t) return;
   if (fireLastX!==null){
-    mouseDX += (t.clientX - fireLastX)*1.6;          // 按住开火时滑动 → 压枪拖视角
-    mouseDY += (t.clientY - fireLastY)*1.6;
+    const fdx = t.clientX - fireLastX, fdy = t.clientY - fireLastY;
+    const fdm = Math.hypot(fdx,fdy);
+    const fcurve = lerp(0.80, 1.25, clamp(fdm/110, 0, 1));  // 压枪滑动同灵敏度曲线
+    mouseDX += fdx*1.6*fcurve;                               // 按住开火时滑动 → 压枪拖视角
+    mouseDY += fdy*1.6*fcurve;
   }
   fireLastX = t.clientX; fireLastY = t.clientY;
 }, {passive:false});
