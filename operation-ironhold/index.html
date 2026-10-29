@@ -591,6 +591,12 @@
 
     <div class="pg act" id="pg-gfx">
       <div class="row">
+        <div class="lbl">操作模式<small>电脑=键鼠+锁定视角；手机=屏幕虚拟按键</small></div>
+        <div class="seg" id="segMode">
+          <b data-m="pc">电脑键鼠</b><b data-m="touch">手机触控</b>
+        </div>
+      </div>
+      <div class="row">
         <div class="lbl">画质预设<small>分辨率缩放 · 抗锯齿 · 阴影综合档位</small></div>
         <div class="seg" id="segQuality">
           <b data-q="low">流畅</b><b data-q="medium">均衡</b><b data-q="high">高清</b><b data-q="ultra">极致</b>
@@ -750,6 +756,18 @@ function mergeGeoms(list){
    ========================================================================= */
 const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 if (IS_TOUCH) document.body.classList.add('touch');
+/* 操作模式：auto=按设备，pc=电脑键鼠，touch=手机虚拟按键（设置面板可切换） */
+function activeTouch(){ return SETTINGS.inputMode==='touch' || (SETTINGS.inputMode!=='pc' && IS_TOUCH); }
+function applyInputMode(){
+  const t = activeTouch();
+  document.body.classList.toggle('touch', t);
+  if (t && document.pointerLockElement === document.body) document.exitPointerLock();
+  try{
+    const kn=$('touchKeyNote'), lr=$('touchLayoutRow');
+    if (kn) kn.style.display = t ? 'block' : 'none';
+    if (lr) lr.style.display = t ? 'block' : 'none';
+  }catch(e){}
+}
 
 /* ---- 默认键位（动作 → 物理键） ---- */
 const DEF_KEYMAP = {
@@ -780,7 +798,7 @@ function actionLabel(a){ return ACTION_NAMES[a] || a; }
 /* ---- 设置（localStorage 持久化） ---- */
 const DEFAULT_SETTINGS = {
   quality:'low', fpsCap:60, adaptive:true, shadows:false, bloom:false,
-  sens:100, joyDead:18, volume:100, keymap:Object.assign({}, DEF_KEYMAP)
+  sens:100, joyDead:18, volume:100, inputMode:'auto', keymap:Object.assign({}, DEF_KEYMAP)
 };
 const SETTINGS = (()=>{
   const s = Object.assign({}, DEFAULT_SETTINGS, {keymap:Object.assign({}, DEF_KEYMAP)});
@@ -5173,7 +5191,7 @@ function pauseGame(){
   SFX.suspend();
 }
 function resumeGame(){
-  if (IS_TOUCH){
+  if (activeTouch()){
     G.paused=false;
     UI.pause.classList.remove('on');
     if (G.started && !G.over){ G.running = true; SFX.resume(); }
@@ -5181,7 +5199,7 @@ function resumeGame(){
 }
 
 document.addEventListener('pointerlockchange', ()=>{
-  if (IS_TOUCH) return;
+  if (activeTouch()) return;
   const locked = document.pointerLockElement === document.body;
   if (!locked && G.started && !G.over){
     pauseGame();
@@ -5192,7 +5210,7 @@ document.addEventListener('pointerlockchange', ()=>{
   }
 });
 function requestLock(){
-  if (IS_TOUCH) return;
+  if (activeTouch()) return;
   const p = document.body.requestPointerLock();
   if (p && p.catch) p.catch(()=>{});
   /* a denied request fires no pointerlockchange, which would leave the round
@@ -6186,7 +6204,7 @@ function updatePlayer(dt){
   player.yawTarget   -= mouseDX*SENS*sensScale;
   player.pitchTarget -= mouseDY*SENS*sensScale;
   player.pitchTarget = clamp(player.pitchTarget, -PI/2+0.02, PI/2-0.02);
-  const lookLambda = IS_TOUCH ? 24 : 34;        // 触屏稍缓更跟手，鼠标快速精确
+  const lookLambda = activeTouch() ? 24 : 34;        // 触屏稍缓更跟手，鼠标快速精确
   player.yaw   = damp(player.yaw,   player.yawTarget,   lookLambda, dt);
   player.pitch = damp(player.pitch, player.pitchTarget, lookLambda, dt);
   const swayInX = mouseDX, swayInY = mouseDY;
@@ -6847,6 +6865,7 @@ const $S = {
   root:$('settings'),
   qSeg:$('segQuality'), fSeg:$('segFps'), aSeg:$('segAdaptive'),
   sSeg:$('segShadow'), bSeg:$('segBloom'),
+  modeSeg:$('segMode'),
   sens:$('sensSlider'), sensVal:$('sensVal'),
   joyDead:$('joyDeadSlider'), joyDeadVal:$('joyDeadVal'),
   vol:$('volSlider'), volVal:$('volVal'),
@@ -6854,7 +6873,7 @@ const $S = {
 };
 function segSet(seg, val){
   for (const b of seg.querySelectorAll('b')){
-    const v = b.dataset.q ?? b.dataset.f ?? b.dataset.a ?? b.dataset.s ?? b.dataset.b;
+    const v = b.dataset.q ?? b.dataset.f ?? b.dataset.a ?? b.dataset.s ?? b.dataset.b ?? b.dataset.m;
     b.classList.toggle('act', v===String(val));
   }
 }
@@ -6864,6 +6883,7 @@ function refreshSettingsUI(){
   segSet($S.aSeg, SETTINGS.adaptive?1:0);
   segSet($S.sSeg, SETTINGS.shadows?1:0);
   segSet($S.bSeg, SETTINGS.bloom?1:0);
+  segSet($S.modeSeg, SETTINGS.inputMode==='auto' ? (activeTouch()?'touch':'pc') : SETTINGS.inputMode);
   $S.sens.value = SETTINGS.sens; $S.sensVal.textContent = SETTINGS.sens+'%';
   $S.joyDead.value = SETTINGS.joyDead; $S.joyDeadVal.textContent = SETTINGS.joyDead+'%';
   $S.vol.value = SETTINGS.volume; $S.volVal.textContent = SETTINGS.volume+'%';
@@ -6897,6 +6917,15 @@ $S.fSeg.addEventListener('click', e=>{
 $S.aSeg.addEventListener('click', e=>{
   const b = e.target.closest('b'); if (!b) return;
   SETTINGS.adaptive = b.dataset.a==='1'; applyGraphics(); refreshSettingsUI(); saveSettings();
+});
+$S.modeSeg.addEventListener('click', e=>{
+  const b = e.target.closest('b'); if (!b) return;
+  SETTINGS.inputMode = b.dataset.m;
+  saveSettings(); applyInputMode(); refreshSettingsUI();
+  /* 从触屏切到键鼠：点击即用户手势，直接尝试锁定视角 */
+  if (b.dataset.m==='pc' && G.started && !G.over && !G.running){
+    if (document.pointerLockElement !== document.body) requestLock();
+  }
 });
 $S.sSeg.addEventListener('click', e=>{
   const b = e.target.closest('b'); if (!b) return;
@@ -6935,7 +6964,7 @@ function buildKeyRows(){
     row.appendChild(lbl); row.appendChild(kb);
     $S.keyRows.appendChild(row);
   }
-  $S.touchNote.style.display = IS_TOUCH ? 'block':'none';
+  $S.touchNote.style.display = activeTouch() ? 'block':'none';
 }
 function startKeyCapture(a, kb){
   if (keyCapture) cancelKeyCapture();
@@ -6978,7 +7007,7 @@ $('resetKeysBtn').addEventListener('click', ()=>{
 /* ---------- 横屏引导 ---------- */
 function updateRotate(){
   const r = $('rotate');
-  if (IS_TOUCH && innerHeight > innerWidth){
+  if (activeTouch() && innerHeight > innerWidth){
     r.classList.add('show');
     if (G.running) pauseGame();
   } else r.classList.remove('show');
@@ -7199,6 +7228,7 @@ leScale.addEventListener('input', ()=>{
   saveLayout();
 });
 if (IS_TOUCH){ $('touchLayoutRow').style.display='block'; }
+applyInputMode();   // 按已保存的操作模式覆盖初始设备检测（此时 SETTINGS 已就绪）
 
 /* 启动应用设置 */
 applyGraphics();
